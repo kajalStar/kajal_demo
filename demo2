@@ -1,0 +1,790 @@
+import { Overlay } from '@angular/cdk/overlay';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges
+} from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Router } from '@angular/router';
+import { LeafletControlLayersConfig } from '@bluehalo/ngx-leaflet';
+import * as L from 'leaflet';
+import { NGXLogger } from 'ngx-logger';
+import { IAsset } from 'src/app/resources/assets';
+import { ICustomChip } from 'src/app/resources/custom-chip';
+import { ISite } from 'src/app/resources/site';
+import { IStaff, StaffsHelper } from 'src/app/resources/staff';
+import { IVanLocation } from 'src/app/resources/van-location';
+import { ServiceRequestService } from 'src/app/services/service-request.service';
+import { SiteService } from 'src/app/services/site.service';
+import { StaffService } from 'src/app/services/staff.service';
+import { VanLocationService } from 'src/app/services/van-location.service';
+import { BaseListPageComponent } from 'src/app/shared/components/base-list-page/base-list-page.component';
+import { YesNoPipe } from 'src/app/shared/pipes/yes-no.pipe';
+import { IPropertyInfoGroup } from 'src/app/shared/resources/property-info';
+import { Utils } from 'src/app/shared/utils/utils';
+import { environment } from 'src/assets/environment/environment ';
+import { StaffEditorComponent } from '../staff-editor/staff-editor.component';
+
+@Component({
+  selector: 'app-staff-details',
+  templateUrl: './staff-details.component.html',
+  styleUrls: ['./staff-details.component.scss'],
+})
+export class StaffDetailsComponent
+  extends BaseListPageComponent<IStaff>
+  implements OnChanges {
+  readonly VAN_IN_PROXIMITY: string = 'Van In Proximity';
+  readonly PERM_StORES_LAYER: string = 'Permanent Stores';
+  readonly HOME_LAYER: string = 'Home Location';
+
+  readonly INITIAL_ZOOM_LEVEL: number = 8;
+  readonly INITIAL_MAP_CENTER: L.LatLng = L.latLng(36.417896, -82.991972); // dummy location;
+  readonly MAX_ZOOM_LEVEL: number = 50;
+
+  readonly OSM_ATTRIBUTION: string =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  @Input()
+  staff: IStaff = <IStaff>{};
+  
+  baseStore: ISite | undefined;
+
+  staffTechId: string = '';
+  permanentStores: ISite[] = [];
+  vanInProximity: IVanLocation[] = [];
+  PROXIMITY_RADIUS = 50 * 1609.34;
+
+  uiDateTimeFormate = environment.uiDateTimeFormate
+
+  // initial map parameters
+  geoMap?: L.Map;
+  mapZoomLevel: number = this.INITIAL_ZOOM_LEVEL;
+  mapOptions: L.MapOptions = this.createMapOptions();
+  isFullScreen: boolean = false
+  tooltipText = 'Click here to view map in fullScreen';
+
+  // TO DO temp. To be removed
+  staffPropertyGroups: IPropertyInfoGroup[] = [];
+  staffSummaryGroup: IPropertyInfoGroup[] = [];
+  removeSummaryGroup: IPropertyInfoGroup[] = [];
+
+  // staff map information
+  staffBaseStoreLocation: L.LatLng = this.INITIAL_MAP_CENTER;
+  markerLayers: L.LayerGroup[] = [];
+
+  searchFilters: ICustomChip[] = [];
+  previousSelectedValues: { [key: string]: string } = {};
+
+  /**
+   * Contains collection of overlay layer that could be optionally shown / hidden by the user.
+   */
+  layersControl: LeafletControlLayersConfig = new LeafletControlLayersConfig();
+
+  /**
+   * Constructor
+   * @param staffService
+   */
+  constructor(
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    public dialog: MatDialog,
+    private staffService: StaffService,
+    private siteService: SiteService,
+    private vanLocationService: VanLocationService,
+    private serviceRequestService: ServiceRequestService
+  ) {
+    super(
+      logger,
+      router,
+      activatedRoute,
+      snackBar,
+      overlay,
+      staffService
+    );
+  }
+
+  async ngOnChanges(_changes: SimpleChanges): Promise<void> {
+    // show staff related details if the map is already visible
+    if (!Utils.isNullOrUndefined(this.geoMap)) {
+      await this.loadStaffDetails(this.staff);
+    }
+  }
+
+  /**
+   * Leaflet notification to indicates that the map  is now ready for
+   * information display.
+   *
+   * @param map
+   */
+  async onMapReady(map: L.Map) {
+    this.geoMap = map;
+    this.subscribeMapEvents();
+
+    console.log('Map is ready');
+    if (!Utils.isNullOrUndefined(this.staff)) {
+      await this.loadStaffDetails(this.staff);
+    }
+    
+  }
+
+  /**
+   * Subscribe to relevant leaflet map events.
+   */
+  private subscribeMapEvents() {
+    // hook overlay add notification. This will be called
+    // by leaflet when user opts to show an overlay layer.
+    this.geoMap?.on('overlayadd', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      // persist the layer visibility state for later use.
+      localStorage.setItem(layerName, '1');
+    });
+
+    // hook overlay remove notification. This will be called
+    // by leaflet when user opts to hide an overlay layer.
+    this.geoMap?.on('overlayremove', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      // persist the layer visibility state for later use.
+      localStorage.removeItem(layerName);
+    });
+  }
+
+  /**
+   * Gets the display status of specified overlay layer.
+   * @param layerName
+   * @returns
+   */
+  private isOverlayLayerVisible(layerName: string): boolean {
+    let value: string = localStorage.getItem(layerName) ?? '1';
+    return parseInt(value) > 0;
+  }
+
+  /**
+   * Helper method to prepare the map options.
+   */
+  private createMapOptions(): L.MapOptions {
+    let mapOptions: L.MapOptions = {
+      zoom: this.mapZoomLevel,
+      layers: [
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: this.MAX_ZOOM_LEVEL,
+          attribution: this.OSM_ATTRIBUTION,
+        }),
+      ],
+      center: L.latLng(37.0902, 95.7129), // dummy location , centre of USA
+    };
+    return mapOptions;
+  }
+
+   // Toggles fullscreen mode for updates the map 
+   onToggleFullScreen() {
+    const mapContainer = document.getElementById('map-container');
+    if (mapContainer) { // Check if mapContainer is not null
+      if (!this.isFullScreen) {
+        if (mapContainer.requestFullscreen) {
+          mapContainer.requestFullscreen();
+        }
+        this.isFullScreen = true;
+
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+        this.isFullScreen = false;
+      }
+      this.updateTooltip();
+      this.geoMap?.invalidateSize();
+    }
+  }
+  updateTooltip() {
+    this.tooltipText = this.isFullScreen
+      ? 'Click here to exit map in fullScreen'
+      : 'Click here to view map in fullScreen';
+  }
+  recenterMap(): void {
+    let baseStoreCoordinates: L.LatLng | null = null;
+    for (let store of this.permanentStores) {
+      if (store.id == this.baseStore?.id) {
+        baseStoreCoordinates = L.latLng(store.latitude, store.longitude);
+        break;
+      }
+    }
+
+    // If base store coordinates are found, set the view to those coordinates
+    if (baseStoreCoordinates) {
+      this.geoMap?.setView(baseStoreCoordinates, this.INITIAL_ZOOM_LEVEL);
+    } else {
+      this.showTransientMessage('Base store  not assigned to tech')
+
+    }  
+  }
+
+  /**
+   * Loads the details of the specified staff and creates corresponding map
+   * overlays.
+   * @param staff
+   */
+
+  async loadStaffDetails(staff: IStaff) {
+    try {
+      this.errors=[]
+      this.staff = staff;
+      this.staffTechId = staff.tech_id;
+      let assetsInfo: IAsset = await this.staffService.getAssetsByEmpId(staff.id);
+      this.staffPropertyGroups = StaffsHelper.getPropertyGroups(staff, assetsInfo);
+      this.staffSummaryGroup = this.staffPropertyGroups.filter((x) => x.name == 'Summary');
+      this.removeSummaryGroup = this.staffPropertyGroups.filter((x) => x.name !== 'Summary');
+      // Fetch permanent stores and vans in proximity
+      await this.fetchVanInProximity(staff.home_latitude, staff.home_longitude);
+      await this.fetchPermanentStores(staff.tech_id);
+      // Get base store and center map
+      this.baseStore = this.getBaseStore(staff);
+      this.centerMapOnBaseStore();
+      // Add marker overlay layers
+      await this.addMarkerOverlayLayers(staff);
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    }
+  }
+  /**
+ * Fetches the permanent stores for the given technician ID.
+ * @param techId - The technician ID.
+ */
+  private async fetchPermanentStores(techId: string) {
+    try {
+      // if(this.staff.home_latitude && this.staff.home_longitude)
+      this.permanentStores = await this.siteService.getPermanentStores(techId);
+    } catch (ex: unknown) {
+
+      this.updateErrorFromException(ex);
+    }
+  }
+
+
+
+  /**
+ * Fetches the vans in proximity based on the given latitude and longitude.
+ * @param latitude - The latitude of the staff's home location.
+ * @param longitude - The longitude of the staff's home location.
+ */
+  private async fetchVanInProximity(latitude: number , longitude: number ) {
+    try {
+      if (this.staff.home_latitude  && this.staff.home_longitude ) {
+        this.vanInProximity = await this.vanLocationService.getVansInProximity(latitude, longitude, this.PROXIMITY_RADIUS);
+      } else {
+        this.vanInProximity = []; 
+      }
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    }
+  }
+
+  /**
+ * Centers the map on the base store location if available.
+ */
+  private centerMapOnBaseStore() {
+    if (!Utils.isNullOrUndefined(this.baseStore)) {
+      let tmpStore: ISite = <ISite>this.baseStore;
+      if (tmpStore.latitude !== null && tmpStore.longitude !== null) {
+        this.staffBaseStoreLocation = L.latLng(tmpStore.latitude, tmpStore.longitude);
+      }
+      // Add a marker for the user's current location
+    let test=this.getCurrentLocationLayer(this.permanentStores);
+    test.addTo(this.geoMap!);
+    } else {
+      this.showTransientMessage(`No base site specified for ${this.staff.first_name} ${this.staff.last_name}`);
+    }
+  }
+
+  private getBaseStore(staff: IStaff): ISite | undefined {
+    let baseStore: ISite | undefined = this.permanentStores.find(
+      (x) => x.site == staff.base_site
+    );
+
+    return baseStore;
+  }
+
+  /**
+   * Helper method to add marker overlay layers.
+   * @param staff
+   */
+  private async addMarkerOverlayLayers(staff: IStaff) {
+
+    let bShowLayer: boolean = true;
+    let layerGroups: L.LayerGroup[] = [];
+
+    //prepare proximity layer
+    let proximityLayer: L.LayerGroup = this.getVanProximityLayer(
+      staff.home_latitude,
+      staff.home_longitude,
+      this.PROXIMITY_RADIUS,
+      this.vanInProximity
+    );
+    bShowLayer = this.isOverlayLayerVisible(this.VAN_IN_PROXIMITY);
+    if (bShowLayer) {
+      layerGroups.push(proximityLayer);
+    }
+    // prepare home location layer
+    this.staff = staff;
+    let staffHomeLayer: L.LayerGroup = this.getHomeLayer(staff);
+    bShowLayer = this.isOverlayLayerVisible(this.HOME_LAYER);
+    if (bShowLayer) {
+      layerGroups.push(staffHomeLayer);
+    }
+
+    // prepare permanent stores location layer
+    let permanentStoresLayer: L.LayerGroup = await this.getPermanentStoreLayer(
+      this.permanentStores
+    );
+    bShowLayer = this.isOverlayLayerVisible(this.PERM_StORES_LAYER);
+    if (bShowLayer) {
+      layerGroups.push(permanentStoresLayer);
+    }
+
+
+    let layersControl: LeafletControlLayersConfig = {
+      baseLayers: {},
+      overlays: {
+        [this.VAN_IN_PROXIMITY]: proximityLayer,
+        [this.PERM_StORES_LAYER]: permanentStoresLayer,
+        [this.HOME_LAYER]: staffHomeLayer,
+      },
+    };
+
+    this.markerLayers = layerGroups;
+    this.layersControl = layersControl;
+
+  }
+
+  /**
+   * get home layer
+   * @param staffData
+   * @returns
+   */
+
+  private getHomeLayer(staff: IStaff): L.LayerGroup {
+
+    let homeLayer: L.LayerGroup = new L.LayerGroup();
+    // Check if latitude and longitude are valid
+    if (
+      Utils.isLocationDataAvailable(staff?.home_latitude, staff?.home_longitude)
+    ) {
+      const homeIcon = this.getDivIcon('home', 'staffHomeIcon', 'Blue');
+          if (
+        Utils.isLocationDataAvailable(staff.home_latitude, staff.home_longitude)
+      ) {
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(staff.home_latitude, staff.home_longitude),
+          {
+            icon: homeIcon,
+          }
+        );
+        let tooltip = this.getHomeLocationTooltip(staff);
+        storeMarker.addTo(homeLayer).bindTooltip(tooltip);
+      }
+    }
+    return homeLayer;
+  }
+  /**
+   * get permanent store layer and base store layer
+   * @param permanentSites
+   * @returns
+   */
+
+  // private getPermanentStoreLayer(permanentSites: ISite[]): L.LayerGroup {
+  //   let permanentStoresLayer: L.LayerGroup = new L.LayerGroup();
+
+  //   // Define different icons for zone and zone Sibling
+  //   const permanentStoreIcon = this.getDivIcon(
+  //     'location_pin',
+  //     'siblingStoreIcon',
+  //     'dimGray',
+  //     '22px'
+  //   );
+  //   const baseStoreIcon = this.getDivIcon(
+  //     'location_pin',
+  //     'baseStoreIcon',
+  //     'crimson',
+  //     '26px'
+  //   );
+  //   for (let store of permanentSites) {
+  //     // Check if store is base store or permanent store
+  //     let icon = permanentStoreIcon;
+  //     if (store.id == this.baseStore?.id) {
+  //       icon = baseStoreIcon;
+  //     } else {
+  //       icon = permanentStoreIcon;
+  //     }
+  //     if (Utils.isLocationDataAvailable(store.latitude, store.longitude)) {
+  //       const storeMarker: L.Marker = L.marker(
+  //         L.latLng(store.latitude, store.longitude),
+  //         {
+  //           icon: icon,
+  //         }
+  //       );
+  //       const tooltip = this.getPermanentStoreTooltip(store);
+  //       storeMarker.addTo(permanentStoresLayer).bindTooltip(tooltip);
+  //     }
+  //   }
+  //   return permanentStoresLayer;
+  // }
+
+  private getPermanentStoreLayer(permanentSites: ISite[]): L.LayerGroup {
+    let permanentStoresLayer: L.LayerGroup = new L.LayerGroup();
+  
+    const permanentStoreIcon = this.getDivIcon(
+      'location_pin',
+      'siblingStoreIcon',
+      'dimGray',
+      '22px'
+    );
+    const baseStoreIcon = this.getDivIcon(
+      'location_pin',
+      'baseStoreIcon',
+      'crimson',
+      '26px'
+    );
+  
+    
+  
+    for (let store of permanentSites) {
+      let icon = store.id === this.baseStore?.id ? baseStoreIcon : permanentStoreIcon;
+      
+      if (Utils.isLocationDataAvailable(store.latitude, store.longitude)) {
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(store.latitude, store.longitude),
+          { icon: icon }
+        );
+        const tooltip = this.getPermanentStoreTooltip(store);
+        storeMarker.addTo(permanentStoresLayer).bindTooltip(tooltip);
+      }
+    }
+  
+    return permanentStoresLayer;
+  }
+  
+  // private addCurrentLocationMarker(site:ISite[]):L.LayerGroup {
+  //   if (navigator.geolocation) {
+  //     navigator.geolocation.getCurrentPosition((position) => {
+  //       const currentLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+  //       const currentLocationIcon = this.getDivIcon('location_pin', 'currentLocationIcon', 'blue', '30px');
+  
+  //       const currentLocationMarker = L.marker(currentLatLng, { icon: currentLocationIcon });
+  //       const tooltip = 'Your Current Location';
+  //       // currentLocationMarker.addTo(layer).bindTooltip(tooltip);
+  
+  //       // Optionally, you can center the map on the current location
+  //       this.geoMap?.setView(currentLatLng, this.INITIAL_ZOOM_LEVEL);
+  //     }, (error) => {
+  //       console.error('Error getting current location:', error);
+  //       // Handle error (e.g., show a message)
+  //     });
+  //   } else {
+  //     console.error('Geolocation is not supported by this browser.');
+  //     // Handle the case where geolocation is not supported
+  //   }
+  // }
+  private getCurrentLocationLayer(zoneSiblings:ISite[]): L.LayerGroup {
+    let currentLocationLayer: L.LayerGroup = new L.LayerGroup();
+  
+    const currentLocationIcon = this.getDivIcon(
+      'location_pin',
+      'currentLocationIcon',
+      'yellow',
+      '39px'
+    );
+  
+    for (let site of this.permanentStores) {
+      // Check if site is base site or zoneSibling
+      let icon = currentLocationIcon;
+      if (site.id== this.baseStore?.id && Utils.isLocationDataAvailable(site.latitude, site.longitude)) {          
+        icon = currentLocationIcon;     
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(site.latitude, site.longitude),
+          {
+            icon: icon,
+          }
+        );
+        const tooltip = this.getPermanentStoreTooltip(site);
+        storeMarker.addTo(currentLocationLayer).bindTooltip(tooltip);
+      }
+    }  
+    return currentLocationLayer;
+  }
+  
+
+  /**
+   * get the van in proximity
+   * @param centerLatitude
+   * @param centerLongitude
+   * @param radius
+   * @param proximityInVan
+   * @returns
+   */
+  private  getVanProximityLayer(
+    centerLatitude: number,
+    centerLongitude: number,
+    radius: number,
+    proximityInVan: IVanLocation[]
+  ): L.LayerGroup {
+    let siteProximityLayer: L.LayerGroup = new L.LayerGroup();
+
+    const selectedTechnicianVanIcon = this.getDivIcon(
+      'airport_shuttle',
+      'selectedTechnicianVanIcon',
+      'darkgreen',
+      '22px'
+    );
+
+    const vanProximityIcon = this.getDivIcon(
+      'airport_shuttle',
+      'vanProximityIcon',
+      'dimGray',
+      '22px'
+    );
+
+    for (let van of proximityInVan) {
+      let icon = vanProximityIcon;
+      if (van.emp_id == this.staff?.emp_id) {
+        icon = selectedTechnicianVanIcon;
+      } else {
+        icon = vanProximityIcon;
+      }
+      // Check if latitude and longitude are valid
+      if (Utils.isLocationDataAvailable(van.latitude, van.longitude)) {
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(van.latitude, van.longitude),
+          {
+            icon: icon,
+          }
+        );
+        const tooltip = this.getVansProximityToolTip(van);
+        storeMarker.addTo(siteProximityLayer).bindTooltip(tooltip);
+      }
+    }
+
+    // Create a circle to mark the proximity boundary
+    let proximityCircle = L.circle([centerLatitude, centerLongitude], {
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 0.2,
+      radius: radius,
+    });
+
+    proximityCircle.addTo(siteProximityLayer);
+    return siteProximityLayer;
+  }
+
+  /**
+   * Gets the tooltip content for base store marker.
+   * @param staff
+   * @returns
+   */
+  private getHomeLocationTooltip(staff: IStaff) {
+    let homeCity: string = staff.home_city ?? '-';
+    let homeState: string = staff.home_state ?? '-';
+    let homeZip: string = staff.home_zip ?? '-';
+    let baseStore: string = staff.base_site ?? '-';
+    let cvsMobile: string = staff.cvs_mobile ?? '-';
+    let popupContent: string = `<table>
+      <tr>
+        <th colspan="3">${staff.first_name} ${staff.last_name}, (${staff.tech_id})</th>
+      </tr>
+      <tr>
+        <td>Home City</td><td>:</td><td>${homeCity}</td>
+      </tr>
+      <tr>
+        <td>Home State</td><td>:</td><td>${homeState}</td>
+      </tr>
+      <tr>
+        <td>ZIP</td><td>:</td><td>${homeZip}</td>
+      </tr>
+      <tr>
+        <td>Mobile</td><td>:</td><td>${cvsMobile}</td>
+      </tr>
+      <tr>
+        <td>Base Store</td><td>:</td><td>${baseStore}</td>
+      </tr>
+     
+    </table>`;
+
+    return popupContent;
+  }
+
+  /**
+   * Gets the tooltip content for specified permanent store.
+   * @param store
+   * @returns
+   */
+  private getPermanentStoreTooltip(store: ISite) {
+    let site: string = store.site ?? '-';
+    let storeTelephone: string = store.store_tele ?? '-';
+    let storeType: string = store.store_type ?? '-';
+    let facilityType: string = store.facility_type ?? '-';
+    let street: string = store.street ?? '-';
+    let city: string = store.city ?? '-';
+    let state: string = store.state ?? '-';
+    let zip: string = store.zip ?? '-';
+
+    let popupContent: string = `<table>
+     <tr>
+      <th colspan="3">Site: ${site}</th>
+     </tr>
+      <tr>
+        <td>Phone</td><td>:</td><td>${storeTelephone}</td>
+      </tr>
+      <tr>
+        <td>Store Type</td><td>:</td><td>${storeType}</td>
+      </tr>
+      <tr>
+        <td>Facility Type</td><td>:</td><td>${facilityType}</td>
+      </tr>
+      <tr>
+        <td>Street</td><td>:</td><td>${street}</td>
+      </tr>
+      <tr>
+        <td>City</td><td>:</td><td>${city}</td>
+      </tr>
+      <tr>
+        <td>State</td><td>:</td><td>${state}</td>
+      </tr>
+      <tr>
+        <td>ZIP</td><td>:</td><td>${zip}</td>
+      </tr>
+    </table>`;
+    return popupContent;
+  }
+
+  /**
+   * Gets the tooltip content  for van in  specified radius
+   * @param van
+   * @returns
+   */
+  private getVansProximityToolTip(van: IVanLocation) {
+    let vehicle_status = van.vehicle_status ?? '-';
+    let vanNumber = van.van_number ?? '-';
+    let zone = van.zone ?? '-';
+    let team = van.team ?? '-';
+    let contactName = van.contact_name ?? '-';
+    let tech_id = van.tech_id ?? '-';
+    let is_Driving = new YesNoPipe().transform(van.is_driving ?? false);
+    let location_update_at = van.last_known_at ??'-';
+    let popupContent: string = `<table>
+  <tr>
+  <td>Van Number</td><td>:</td><td>${vanNumber}</td>
+  </tr>
+  <tr>
+  <td>Vehicle Status</td><td>:</td><td>${vehicle_status}</td>
+  </tr>
+  <tr>
+  <td>Zone</td><td>:</td><td>${zone}</td>
+  </tr>
+  <tr>
+  <td>Team</td><td>:</td><td>${team}</td>
+  </tr>
+  <tr>
+  <td>Technician Name</td><td>:</td><td>${contactName}</td>
+  </tr>  
+  <tr>
+  <td>Technician Id</td><td>:</td><td>${tech_id}</td>
+  </tr>
+  <tr>
+  <td>Is Driving</td><td>:</td><td>${is_Driving}</td>
+  </tr>
+  <tr>
+  <td>Location Update At</td><td>:</td><td>${location_update_at}</td>
+  </tr>
+  </table>`;
+    return popupContent;
+  }
+
+  /**
+   * Formats a given date according to the specified format.
+   * 
+   * @param {Date} date - The date to format.
+   * @param {string} format - The format string (e.g., 'MM/DD/YYYY').
+   * @returns {string} - The formatted date string.
+   **/
+
+  private formatDate(date: Date, format: string): string {
+    const options: Intl.DateTimeFormatOptions = {};
+
+    if (format.includes('MM')) options.month = '2-digit';
+    if (format.includes('DD')) options.day = '2-digit';
+    if (format.includes('YYYY')) options.year = 'numeric';
+    return new Date(date).toLocaleDateString(undefined, options);
+  }
+
+
+  /**
+   * Gets html for specified icon
+   *
+   * @param iconName
+   * @param className
+   * @param iconColor
+   * @returns
+   */
+  private getDivIcon(
+    iconName: string,
+    className: string,
+    iconColor: string,
+    iconSizePx: string = '30px'
+  ): L.DivIcon {
+    let iconHtml: string = `
+    <i class="material-icons ${className}" 
+    matBadge="3"
+    style=
+      "color: ${iconColor};
+      font-size: ${iconSizePx};
+      -webkit-text-stroke-color: black;" 
+      >${iconName}</i>
+    `;
+
+    let iconOptions = <L.DivIconOptions>{
+      html: iconHtml,
+      className: className, // Specify something to get rid of the default class.
+    };
+
+    const icon = L.divIcon(iconOptions);
+    return icon;
+  }
+  onUpdateStaff() {
+    let staffDetails: IStaff = this.staff;
+    const isDisabled = true;
+    const title =
+      'Updating Staff Details' +
+      ' » ' +
+      staffDetails?.first_name +
+      ' ' +
+      staffDetails?.last_name;
+
+    const message = '';
+    const dialogRef = this.dialog.open(StaffEditorComponent, {
+      width: '750px',
+      data: {
+        title,
+        message,
+        searchFilter: this.filter,
+        searchFilters: this.searchFilters,
+        previousSelectedValues: this.previousSelectedValues,
+      },
+      restoreFocus: false,
+      autoFocus: false,
+    });
+    dialogRef.afterClosed().subscribe((searchFilter: IStaff) => {
+      if (!Utils.isNullOrUndefined(searchFilter)) {
+        this.filter = searchFilter;
+        this.onGotoPage(0);
+        // this.updateSearchFilters(searchFilter);
+      }
+    });
+  }
+}

@@ -1,3 +1,13 @@
+private addCurrentLocationLayer(site: ISite): void {
+    const currentLocationLayer = this.getCurrentLocationLayer(this.ZoneSiblings);
+    if (currentLocationLayer) {
+        currentLocationLayer.addTo(this.geoMap);
+    }
+}
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

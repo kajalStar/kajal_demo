@@ -1,3 +1,23 @@
+private addBaseStoreMarker(staff: IStaff): void {
+  const baseStore = this.getBaseStore(staff); // Fetch the base store based on staff
+  if (baseStore && Utils.isLocationDataAvailable(baseStore.latitude, baseStore.longitude)) {
+    const baseStoreMarker = L.marker(
+      L.latLng(baseStore.latitude, baseStore.longitude),
+      {
+        icon: this.getDivIcon('location_pin', 'baseStoreIcon', 'crimson', '26px'),
+      }
+    ).bindTooltip(this.getPermanentStoreTooltip(baseStore)); // Optional: bind a tooltip
+
+    baseStoreMarker.addTo(this.geoMap); // Add marker to the map
+    this.geoMap.setView(baseStoreMarker.getLatLng(), this.INITIAL_ZOOM_LEVEL); // Optionally center the map on the marker
+  } else {
+    this.showTransientMessage(`No valid base store location for ${staff.first_name} ${staff.last_name}`);
+  }
+}
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   Component,

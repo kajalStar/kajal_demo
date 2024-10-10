@@ -1,3 +1,42 @@
+async onMapReady(map: L.Map) {
+  this.geoMap = map;
+  this.subscribeMapEvents();
+
+  console.log('Map is ready');
+  
+  // Get and display current location
+  try {
+    const currentLocation = await this.getCurrentLocation();
+    this.geoMap.setView(currentLocation, this.INITIAL_ZOOM_LEVEL); // Center the map on current location
+    L.marker(currentLocation).addTo(this.geoMap).bindTooltip("You are here!");
+  } catch (error) {
+    console.error("Error getting current location:", error);
+  }
+
+  if (!Utils.isNullOrUndefined(this.staff)) {
+    await this.loadStaffDetails(this.staff);
+  }
+}
+getCurrentLocation(): Promise<L.LatLng> {
+  return new Promise((resolve, reject) => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const latLng = L.latLng(position.coords.latitude, position.coords.longitude);
+          resolve(latLng);
+        },
+        (error) => {
+          reject(error);
+        }
+      );
+    } else {
+      reject(new Error("Geolocation not supported"));
+    }
+  });
+}
+
+
+
 private addBaseStoreMarker(staff: IStaff): void {
   const baseStore = this.getBaseStore(staff); // Fetch the base store based on staff
   if (baseStore && Utils.isLocationDataAvailable(baseStore.latitude, baseStore.longitude)) {

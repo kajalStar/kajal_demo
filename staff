@@ -1,3 +1,75 @@
+private getPermanentStoreLayer(permanentSites: ISite[]): L.LayerGroup {
+  let permanentStoresLayer: L.LayerGroup = new L.LayerGroup();
+
+  const permanentStoreIcon = this.getDivIcon(
+    'location_pin',
+    'siblingStoreIcon',
+    'dimGray',
+    '22px'
+  );
+  const baseStoreIcon = this.getDivIcon(
+    'location_pin',
+    'baseStoreIcon',
+    'crimson',
+    '26px'
+  );
+
+  // Add a marker for the user's current location
+  this.addCurrentLocationMarker(permanentStoresLayer);
+
+  for (let store of permanentSites) {
+    let icon = store.id === this.baseStore?.id ? baseStoreIcon : permanentStoreIcon;
+    
+    if (Utils.isLocationDataAvailable(store.latitude, store.longitude)) {
+      const storeMarker: L.Marker = L.marker(
+        L.latLng(store.latitude, store.longitude),
+        { icon: icon }
+      );
+      const tooltip = this.getPermanentStoreTooltip(store);
+      storeMarker.addTo(permanentStoresLayer).bindTooltip(tooltip);
+    }
+  }
+
+  return permanentStoresLayer;
+}
+
+private addCurrentLocationMarker(layer: L.LayerGroup): void {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const currentLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+      const currentLocationIcon = this.getDivIcon('location_pin', 'currentLocationIcon', 'blue', '30px');
+
+      const currentLocationMarker = L.marker(currentLatLng, { icon: currentLocationIcon });
+      const tooltip = 'Your Current Location';
+      currentLocationMarker.addTo(layer).bindTooltip(tooltip);
+
+      // Optionally, you can center the map on the current location
+      this.geoMap?.setView(currentLatLng, this.INITIAL_ZOOM_LEVEL);
+    }, (error) => {
+      console.error('Error getting current location:', error);
+      // Handle error (e.g., show a message)
+    });
+  } else {
+    console.error('Geolocation is not supported by this browser.');
+    // Handle the case where geolocation is not supported
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 async onMapReady(map: L.Map) {
   this.geoMap = map;
   this.subscribeMapEvents();

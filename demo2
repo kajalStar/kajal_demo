@@ -1,3 +1,16 @@
+private updateCurrentLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const currentLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+      this.getCurrentLocationLayer(); // This should now clear the previous marker
+      this.geoMap?.setView(currentLatLng, this.INITIAL_ZOOM_LEVEL); // Optionally center the map
+    }, (error) => {
+      console.error('Error getting current location:', error);
+    });
+  }
+}
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   Component,

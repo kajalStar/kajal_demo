@@ -22,6 +22,36 @@ private async loadStormData(): Promise<void> {
 
 
 
+private async loadStormData(): Promise<void> {
+    const data = await this.stormService.findItems(0, 10);
+
+    if (this.geoMap) { 
+        data.items.forEach(storm => {
+            if (storm.affected_area) { 
+                storm.affected_area.forEach(area => {
+                    area.features.forEach(feature => {
+                        const coordinates = feature.geometry.coordinates;
+                        console.log(feature.geometry.type, coordinates); // Log type and coordinates
+                        
+                        if (feature.geometry.type === 'Polygon') {
+                            const latLngs = coordinates[0].map((coord: [number, number]) => [coord[1], coord[0]]);
+                            L.polygon(latLngs, { color: 'red', fillOpacity: 0.5 }).addTo(this.geoMap!);
+                        } else if (feature.geometry.type === 'MultiPolygon') {
+                            coordinates.forEach(polygon => {
+                                const latLngs = polygon.map((coord: [number, number]) => [coord[1], coord[0]]);
+                                L.polygon(latLngs, { color: 'red', fillOpacity: 0.5 }).addTo(this.geoMap!);
+                            });
+                        }
+                    });
+                });
+            }
+        });
+    } 
+}
+
+
+
+
 
 import { Overlay } from '@angular/cdk/overlay';
 import { AfterViewInit, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';

@@ -1,3 +1,21 @@
+.map-container {
+  position: relative; /* Change to fixed when fullscreen */
+  width: 100%; /* Full width */
+  height: 68vh; /* Original height */
+  transition: height 0.3s; /* Smooth transition */
+}
+
+:fullscreen .map-container {
+  position: fixed; /* Change to fixed */
+  top: 0;
+  left: 0;
+  width: 100vw; /* Full width */
+  height: 100vh; /* Full height */
+  z-index: 2000; /* Ensure it's on top */
+}
+
+
+
 <div class="container-fluid staff-list">
   <div class="row">
     <div class="col-md-12">

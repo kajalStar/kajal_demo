@@ -1,3 +1,57 @@
+private polygons: L.Polygon[] = []; // Store polygons here
+
+private async loadStormData(): Promise<void> {
+    try {
+        const data = await this.stormService.findItems(0, 10);
+        
+        // Remove previous polygons
+        this.polygons.forEach(polygon => {
+            this.geoMap?.removeLayer(polygon);
+        });
+        this.polygons = []; // Clear the array
+
+        if (this.geoMap) {
+            data.items.forEach(storm => {
+                const affectedArea = storm.affected_area as unknown as IStormAffectedArea;
+                if (affectedArea && affectedArea.type === 'FeatureCollection' && Array.isArray(affectedArea.features)) {
+                    affectedArea.features.forEach(feature => {
+                        if (storm.id === this.storm.id) {
+                            const coordinates = feature.geometry.coordinates;
+                            const latLngs = coordinates.map((coord: [number, number]) => [coord[1], coord[0]]); // Note: Leaflet uses [lat, lng]
+
+                            const polygon = L.polygon(latLngs, { color: 'green', fillOpacity: 1 });
+                            polygon.addTo(this.geoMap);
+                            this.polygons.push(polygon); // Store the polygon
+                        }
+                    });
+                }
+            });
+        }
+    } catch (ex: unknown) {
+        this.updateErrorFromException(ex);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 private async loadStormData(): Promise<void> {
     try {
       const data = await this.stormService.findItems(0, 10);

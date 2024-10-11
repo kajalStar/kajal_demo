@@ -14,6 +14,21 @@
   z-index: 2000; /* Ensure it's on top */
 }
 
+.sticky-toolbar {
+  position: relative; /* Default */
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000; /* Ensure it's above other elements */
+}
+
+:fullscreen .sticky-toolbar {
+  position: fixed; /* Fix it in fullscreen */
+  top: 10px; /* Adjust as needed */
+  left: 10px; /* Adjust as needed */
+  z-index: 2001; /* Ensure it's above the map */
+}
+
 
 
 <div class="container-fluid staff-list">

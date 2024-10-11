@@ -1,0 +1,47 @@
+<div class="staff-details">
+  <error-list
+    *ngIf="errors.length > 0"
+    [errorList]="errors"
+    [canMessageDismiss]="true"
+    [isErrorTypeMessage]="true"
+  ></error-list>
+  <div class="row">
+    <div class="col-md-6">
+      <app-property-grid
+        [hideDeleteButton]="true"
+        [hideCloseButton]="true"
+        [propertiesGroups]="staffSummaryGroup"
+        [showToolbar]="false"
+      ></app-property-grid>
+    </div>
+    <div class="col-md-6">
+      <div
+        id="map-container"
+        class="map-container"
+        leaflet
+        (leafletMapReady)="onMapReady($event)"
+        [leafletOptions]="mapOptions"
+        [(leafletCenter)]="staffBaseStoreLocation"
+        [leafletLayers]="markerLayers"
+        [leafletLayersControl]="layersControl"
+      >
+        <button (click)="recenterMap()" class="recenter-btn">
+          <mat-icon matTooltip="Click here to recenter the map">my_location</mat-icon>
+        </button>
+        <button class="fullscreen-btn" (click)="onToggleFullScreen()">
+          <mat-icon [matTooltip]="tooltipText">{{ isFullScreen ? "fullscreen_exit" : "fullscreen" }}</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-12">
+      <app-property-grid-accordion
+        [staff]="staff"
+        [hideDeleteButton]="true"
+        [hideCloseButton]="true"
+        [propertiesGroups]="removeSummaryGroup"
+      ></app-property-grid-accordion>
+    </div>
+  </div>
+</div>

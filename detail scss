@@ -1,0 +1,65 @@
+.staff-details {
+    
+    .map-container {
+      height: 68vh;
+      display: flex;
+      z-index: 1;
+      margin-top: 5px;
+      position: relative;
+    }
+    .staffHomeIcon {
+      color: darkred;
+      -webkit-text-stroke-color: black;
+    }
+    .permanentStoreIcon {
+      color: darkblue;
+      -webkit-text-stroke-color: black;
+    }
+    .vanLocationIcon {
+      color: black;
+      -webkit-text-stroke-color: black;
+    }
+    .openSRLocationIcon {
+      color: green;
+      -webkit-text-stroke-color: black;
+    }
+    .staff-content {
+      margin-right: -10px;
+    }
+    .staff-data {
+      margin-right: -20px;
+    }
+    #geoMap {
+      height: 100px;
+    }
+    .fullscreen-btn {
+      position: absolute;
+      bottom: 90px;
+      right: 10px;
+      z-index: 1000;
+      border: 1px solid gray;
+      border-radius: 10px;
+      background-color: white !important;
+      padding: 7px 10px;
+      background-size: 26px 26px;
+    }
+    .recenter-btn {
+      position: absolute;
+      bottom: 40px;
+      right: 10px;
+      z-index: 1000;
+      border: 1px solid gray;
+      border-radius: 10px;
+      background-color: white !important;
+      padding: 7px 10px;
+      background-size: 26px 26px;
+    }
+    .fullscreen-btn mat-icon {
+      color: gray;
+    }
+    .recenter-btn mat-icon {
+      font-size: 24px;
+      color: gray;
+    }
+  }
+  

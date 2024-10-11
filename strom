@@ -1,0 +1,365 @@
+import { Overlay } from '@angular/cdk/overlay';
+import { AfterViewInit, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Router } from '@angular/router';
+import { LeafletControlLayersConfig } from '@bluehalo/ngx-leaflet';
+import * as L from 'leaflet';
+import { NGXLogger } from 'ngx-logger';
+import { IStorm, StormHelper } from 'src/app/resources/storm';
+import { StormService } from 'src/app/services/storm.service';
+import { BaseListPageComponent } from 'src/app/shared/components/base-list-page/base-list-page.component';
+import { IPropertyInfoGroup } from 'src/app/shared/resources/property-info';
+import { IToolbarButton } from 'src/app/shared/resources/toolbar-button';
+import { Utils } from 'src/app/shared/utils/utils';
+import { StormEditorComponent } from '../storm-editor/storm-editor.component';
+import { IStormAffectedArea } from 'src/app/resources/strom-affected-area';
+
+@Component({
+  selector: 'app-storm-detail',
+  templateUrl: './storm-detail.component.html',
+  styleUrls: ['./storm-detail.component.scss']
+})
+export class StormDetailComponent extends BaseListPageComponent<IStorm>
+  implements OnChanges, OnInit, AfterViewInit {
+  readonly ZONE_SIBLING: string = 'Zone Siblings';
+  readonly VAN_IN_PROXIMITY: string = 'Vans In Proximity';
+  readonly SITES_IN_PROXIMITY: string = 'Sites in Proximity';
+
+  readonly INITIAL_ZOOM_LEVEL: number = 8.4;
+  readonly INITIAL_MAP_CENTER: L.LatLng = L.latLng(39.606801, -86.15921); // dummy location;
+  readonly MAX_ZOOM_LEVEL: number = 50;
+
+  readonly OSM_ATTRIBUTION: string =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  @Input() storm: IStorm = <IStorm>{};
+  previousSelectedValues: { [key: string]: string } = {};
+
+
+
+  toolbarButton: Array<IToolbarButton> = [];
+  PROXIMITY_SITES = 50 * 1609.34;
+  stormPropertyGroups: IPropertyInfoGroup[] = []
+  // initial map parameters
+  geoMap?: L.Map;
+  mapZoomLevel: number = this.INITIAL_ZOOM_LEVEL;
+  mapOptions: L.MapOptions = this.createMapOptions();
+
+  isFullScreen: boolean = false
+  tooltipText = 'Click here to view map in fullScreen';
+
+  // site map information
+  stormLocation: L.LatLng = this.INITIAL_MAP_CENTER;
+  markerLayers: L.LayerGroup[] = [];
+  nhc_operational_id:string=''
+
+  /**
+   * Contains collection of overlay layer that could be optionally shown / hidden by the user.
+   */
+  layersControl: LeafletControlLayersConfig = new LeafletControlLayersConfig();
+
+  /**
+   * Constructor
+   * @param stormService
+   */
+  constructor(
+    private stormService: StormService,
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    public dialog: MatDialog,
+  ) {
+    super(
+      logger,
+      router,
+      activatedRoute,
+      snackBar,
+      overlay,
+      stormService
+    );
+    this.initializeToolbar();
+  }
+
+  private initializeToolbar(): void {
+    let tButtons: Array<IToolbarButton> = [];
+    tButtons.push(<IToolbarButton>{
+      name: 'edit',
+      icon: 'edit',
+      description: 'Edit Site Details',
+    });
+    this.toolbarButton = tButtons;
+  }
+
+  async ngOnChanges(changes: SimpleChanges): Promise<void> {
+    // show site related details if the map is already visible
+    // if (!Utils.isNullOrUndefined(this.geoMap)) {
+    await this.loadStormDetails(this.storm);
+  // }
+  }
+  ngAfterViewInit() {}
+
+  ngOnInit(): void {
+    this.initMap();
+  }
+  
+  private initMap(): void {
+    this.geoMap = L.map('map-container').setView([19.5, -44.5], 10);
+  
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(this.geoMap);
+  
+    this.loadStormData(); // Load storm data after map initialization
+  }
+  
+  private async loadStormData(): Promise<void> {
+    const data = await this.stormService.findItems(0, 10);
+  
+    if (this.geoMap) { 
+      data.items.forEach(storm => {
+        if (storm.affected_area) { 
+          storm.affected_area.forEach(area => {
+            area.features.forEach(feature => {
+              const coordinates = feature.geometry.coordinates; 
+              const latLngs = coordinates.map((coord: [number, number]) => [coord, coord]);
+              L.polygon(latLngs, { color: 'red' }).addTo(this.geoMap!);
+            });
+          });
+        }
+      });
+    } 
+  }  
+
+  /**
+   * Leaflet notification to indicates that the map  is now ready for
+   * information display.
+   *
+   * @param map
+   */
+  async onMapReady(map: L.Map) {
+    this.geoMap = map;
+    this.subscribeMapEvents();
+    // if (!Utils.isNullOrUndefined(this.geoMap)) {
+      await this.loadStormDetails(this.storm);
+    // }
+  }
+
+  /**
+   * Subscribe to relevant leaflet map events.
+   */
+  private subscribeMapEvents() {
+    // hook overlay add notification. This will be called
+    // by leaflet when user opts to show an overlay layer.
+    this.geoMap?.on('overlayadd', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      if (!Utils.isEmptyOrWhiteSpace(layerName)) {
+        // persist the layer visibility state for later use.
+        localStorage.setItem(layerName, '1');
+      }
+    });
+
+    // hook overlay remove notification. This will be called
+    // by leaflet when user opts to hide an overlay layer.
+    this.geoMap?.on('overlayremove', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      if (!Utils.isEmptyOrWhiteSpace(layerName)) {
+        // persist the layer visibility state for later use.
+        localStorage.setItem(layerName, '0');
+      }
+    });
+  }
+
+  // Toggles fullscreen mode for updates the map 
+  onToggleFullScreen() {
+
+    const mapContainer = document.getElementById('map-container');
+    if (mapContainer) {
+      if (!this.isFullScreen) {
+        if (mapContainer.requestFullscreen) {
+          mapContainer.requestFullscreen();
+        }
+        this.isFullScreen = true;
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+        this.isFullScreen = false;
+      }
+      this.updateTooltip();
+      this.geoMap?.invalidateSize();
+    }
+  }
+  updateTooltip() {
+    this.tooltipText = this.isFullScreen
+      ? 'Click here to exit map in fullScreen'
+      : 'Click here to view map in fullScreen';
+
+  }
+  recenterMap(): void {
+
+    this.geoMap?.setView(this.INITIAL_MAP_CENTER, this.INITIAL_ZOOM_LEVEL);
+  }
+
+
+
+  /**
+  * Gets the display status of specified overlay layer.
+  * @param layerName
+  * @returns
+  */
+  private isOverlayLayerVisible(layerName: string): boolean {
+    let value: string = localStorage.getItem(layerName) ?? '1';
+    return parseInt(value) > 0;
+  }
+
+  /**
+   * Helper method to prepare the map options.
+   */
+  private createMapOptions(): L.MapOptions {
+    let mapOptions: L.MapOptions = {
+      zoom: this.mapZoomLevel,
+      layers: [
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: this.MAX_ZOOM_LEVEL,
+          attribution: this.OSM_ATTRIBUTION,
+        }),
+      ],
+      center: L.latLng(37.0902, 95.7129), // dummy location , centre of USA
+    };
+
+    return mapOptions;
+  }
+
+  /**
+   * Loads the details of the specified staff and creates corresponding map
+   * overlays.
+   * @param storm
+   */
+  async loadStormDetails(storm: IStorm) {
+    this.storm = storm;
+    this.nhc_operational_id=storm.nhc_operational_id
+    this.stormPropertyGroups = StormHelper.getProperties(storm)
+    await this.addMarkerOverlayLayers(storm);
+  }
+
+  /**
+   * Helper method to add marker overlay layers.
+   * @param storm
+   */
+  private async addMarkerOverlayLayers(storm: IStorm) {
+    let bShowLayer: boolean = true;
+    let layerGroups: L.LayerGroup[] = [];
+
+
+
+    let layersControl: LeafletControlLayersConfig = {
+      baseLayers: {},
+      overlays: {
+      }
+    };
+
+    this.markerLayers = layerGroups;
+    this.layersControl = layersControl;
+  }
+ 
+  /**
+   * Gets html for specified icon
+   *
+   * @param iconName
+   * @param className
+   * @param iconColor
+   * @returns
+   */
+  private getDivIcon(
+    iconName: string,
+    className: string,
+    iconColor: string,
+    iconSizePx: string = '30px'
+  ): L.DivIcon {
+    let iconHtml: string = `
+  <i class="material-icons ${className}" 
+  matBadge="3"
+  style=
+    "color: ${iconColor};
+    font-size: ${iconSizePx};
+    -webkit-text-stroke-color: black;" 
+    >${iconName}</i>
+  `;
+
+    let iconOptions = <L.DivIconOptions>{
+      html: iconHtml,
+      className: className, // Specify something to get rid of the default class.
+    };
+
+    const icon = L.divIcon(iconOptions);
+    return icon;
+  }
+
+
+
+
+
+  onUpdateStormDetails() {
+    let staffDetails: IStorm = this.selectedItems[0];
+    const isDisabled = true;
+    const title =
+      'Updating site Details' +
+      ' » ' +
+      staffDetails?.name 
+      
+    const message = '';
+    const dialogRef = this.dialog.open(StormEditorComponent, {
+      width: '750px',
+      data: {
+        title,
+        message,
+        searchFilter: this.filter,
+        previousSelectedValues: this.previousSelectedValues,
+      },
+      restoreFocus: false,
+      autoFocus: false,
+    });
+    dialogRef.afterClosed().subscribe((searchFilter: IStorm) => {
+      if (!Utils.isNullOrUndefined(searchFilter)) {
+        this.filter = searchFilter;
+        this.onGotoPage(0);
+        // this.updateSearchFilters(searchFilter);
+      }
+    });
+  }
+}
+
+export interface IStorm extends IResource {
+    basin: string;
+    nhc_operational_id: string;
+    name: string;
+    path_json: string;
+    exterior_ring: string;
+    track_from: Date;
+    track_to: Date;
+    storm_progress_updated_on: Date
+    enable_tracking: boolean;
+    // path:IStormAffectedArea[]
+    affected_area: IStormAffectedArea[]
+}
+import { IResource } from "../shared/contracts/iresource";
+
+export interface IStormAffectedArea extends IResource {
+    type: string;
+    features: IFeature[];
+}
+
+export interface IFeature {
+    type: string;
+    geometry: IGeometry;
+}
+
+export interface IGeometry {
+    type: string;
+    coordinates: [];
+}

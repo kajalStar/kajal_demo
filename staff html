@@ -1,0 +1,140 @@
+<div class="container-fluid staff-list">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- <h2 class="col-md-3">FTS Staff Information</h2> -->
+      <error-list
+        *ngIf="errors.length > 0"
+        [errorList]="errors"
+        [canMessageDismiss]="true"
+        [isErrorTypeMessage]="true"
+      ></error-list>
+    </div>
+    <div class="row">
+      <div class="col-md-2 mt-4"><h1>Staff Information</h1></div>
+      <div class="search-container col-md-8">
+        <div class="search-box">
+          <mat-form-field appearance="fill" class="w-100 mt-2">
+            <input
+              matInput
+              (keyup.enter)="onSearchClick()"
+              placeholder="Enter search text..."
+              [(ngModel)]="searchText"
+            />
+            <mat-icon matSuffix matTooltip="Search" (click)="onSearchClick()"
+              >search</mat-icon
+            >
+            <mat-icon
+              matSuffix
+              class="searchButton"
+              matTooltip="Advance Search"
+              (click)="onShowAdvancedSearchDialog()"
+              >filter_alt</mat-icon
+            >
+          </mat-form-field>
+        </div>
+      </div>
+      <div class="row">
+        <div
+          class="filter-chips-container filter-chips col-md-12 center-block text-center"
+        >
+          <ng-container *ngFor="let filter of searchFilters">
+            <mat-chip
+              [removable]="true"
+              (removed)="removeChip(filter.propertyName)"
+              class="m-1"
+            >
+              {{ filter.chipName }}
+              <mat-icon matChipRemove matTooltip="Remove">cancel</mat-icon>
+            </mat-chip>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-3 staff-list-container">
+      <!-- search form -->
+
+      <!-- No matching search result -->
+      <div *ngIf="match_count === 0">
+        <mat-card>
+          <mat-card-content>
+            <p class="text-center">
+              No matching result found for specified search criterion
+            </p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+      <!-- search result -->
+      <div *ngIf="match_count > 0">
+        <cdk-virtual-scroll-viewport
+          itemSize="50"
+          #staffData
+          class="content"
+          (scrolledIndexChange)="setupScrollListeners(staffData)"
+        >
+          <mat-card
+            class="my-2 mx-0"
+            *ngFor="let staff of items"
+            [ngClass]="{ 'selected-item': isSelected(staff) }"
+          >
+            <mat-card-content
+              class="staff-list-item m-0"
+              (click)="onToggleSelection(staff)"
+            >
+              <div class="row">
+                <div class="col-md-3">
+                  <img
+                    alt=""
+                    src="{{ staff.perm_tech_photo }}"
+                    class="staff-picture"
+                    *ngIf="isStaffPictureAvailable(staff)"
+                  />
+                </div>
+                <div class="col-md-9">
+                  <div class="h5">
+                    <b>{{ staff.first_name }} {{ staff.last_name }}</b>
+                  </div>
+                  <div class="h6">
+                    {{ staff.title }} - {{ staff.tech_id }} -
+                    {{ staff.base_site }} <br />{{ staff.cvs_mobile }} <br />{{
+                      staff.email
+                    }}
+                  </div>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </cdk-virtual-scroll-viewport>
+      </div>
+    </div>
+
+    <!-- Selected staff details -->
+    <div class="col-md-9" ngClass="staff-details-container">
+      <mat-card>
+        <mat-card-content class="card-content">
+          <ng-container *ngIf="!isAnyItemSelected()">
+            <div class="general-notice">
+              <h2>*** General notice ***</h2>
+            </div>
+            <h4 class="h4">
+              Select a staff from the list to view it's details
+            </h4>
+          </ng-container>
+          <div class="row toolbar" *ngIf="isAnyItemSelected()">
+            <mat-toolbar class="sticky-toolbar">
+              <span
+                >{{ selectedStaff.first_name }} {{ selectedStaff.last_name }}
+              </span>
+              <mat-icon (click)="onUpdateStaff()">edit</mat-icon>
+            </mat-toolbar>
+          </div>
+          <app-staff-details
+            class="mt-2"
+            [staff]="selectedStaff"
+            *ngIf="isAnyItemSelected()"
+          ></app-staff-details> </mat-card-content
+      ></mat-card>
+    </div>
+  </div>
+</div>

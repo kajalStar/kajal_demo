@@ -1,3 +1,14 @@
+  private cachedEnums: IEnumCached[] = [];
+ 
+ 
+export interface IEnumCached {
+  enumType: string;
+  enumItems: IZenvyEnum[];
+}
+ 
+
+
+
 public async getEnumsListByEnumtype(enumType: string): Promise<IZenvyEnum[]> {
     let baseUrl: string = this.getBaseUrl();
     let url = Utils.pathJoin([baseUrl + '/' + enumType]);

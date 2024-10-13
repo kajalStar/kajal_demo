@@ -1,4 +1,67 @@
- case 'REGISTRATIONTYPEENG':
+src_app_pages_storm_storm_module_ts.js:2 ERROR Error: Uncaught (in promise): NullInjectorError: R3InjectorError(StormModule)[EnumNamePipe -> EnumNamePipe -> EnumNamePipe]: 
+  NullInjectorError: No provider for EnumNamePipe!
+NullInjectorError: NullInjectorError: No provider for EnumNamePipe!
+    at NullInjector.get (core.mjs:8890:27)
+    at R3Injector.get (core.mjs:9334:33)
+    at R3Injector.get (core.mjs:9334:33)
+    at R3Injector.get (core.mjs:9334:33)
+    at ChainedInjector.get (core.mjs:14018:36)
+    at lookupTokenUsingModuleInjector (core.mjs:4608:39)
+    at getOrCreateInjectable (core.mjs:4656:12)
+    at Module.ɵɵdirectiveInject (core.mjs:11801:19)
+    at NodeInjectorFactory.StormPageComponent_Factory [as factory] (storm-page.component.ts:32:32)
+    at getNodeInjectable (core.mjs:4862:44)
+    at NullInjector.get (core.mjs:8890:27)
+    at R3Injector.get (core.mjs:9334:33)
+    at R3Injector.get (core.mjs:9334:33)
+    at R3Injector.get (core.mjs:9334:33)
+    at ChainedInjector.get (core.mjs:14018:36)
+    at lookupTokenUsingModuleInjector (core.mjs:4608:39)
+    at getOrCreateInjectable (core.mjs:4656:12)
+    at Module.ɵɵdirectiveInject (core.mjs:11801:19)
+    at NodeInjectorFactory.StormPageComponent_Factory [as factory] (storm-page.component.ts:32:32)
+    at getNodeInjectable (core.mjs:4862:44)
+    at resolvePromise (zone.js:1193:31)
+    at resolvePromise (zone.js:1147:17)
+    at zone.js:1260:17
+    at _ZoneDelegate.invokeTask (zone.js:402:31)
+    at core.mjs:10757:55
+    at AsyncStackTaggingZoneSpec.onInvokeTask (core.mjs:10757:36)
+    at _ZoneDelegate.invokeTask (zone.js:401:60)
+    at Object.onInvokeTask (core.mjs:11070:33)
+    at _ZoneDelegate.invokeTask (zone.js:401:60)
+    at Zone.runTask (zone.js:173:47)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+case 'REGISTRATIONTYPEENG':
           {
             let propValue: any = Reflect.get(location, prop);
             let propDisplayName: string = Utils.camelCaseToTitle(

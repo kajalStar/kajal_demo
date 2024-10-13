@@ -1,3 +1,35 @@
+import { Pipe, PipeTransform } from '@angular/core';
+import { EnumService } from 'src/app/services/enum.service';
+ 
+@Pipe({
+  name: 'enumNamePipe',
+})
+export class EnumNamePipe implements PipeTransform {
+  constructor(private enumService: EnumService) {}
+ 
+  async transform(value: string, enumType?: string): Promise<string> {
+    if (enumType) {
+      return await this.enumService.getEnumName(value, enumType);
+    }
+    return '';
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

@@ -1,4 +1,36 @@
-  private fetchingEnums: { [key: string]: Promise<void> } = {};
+ case 'REGISTRATIONTYPEENG':
+          {
+            let propValue: any = Reflect.get(location, prop);
+            let propDisplayName: string = Utils.camelCaseToTitle(
+              'Registration Type English'
+            );
+            let transformValue = await enumNamePipe.transform(
+              propValue,
+              'RegistrationTypes'
+            );
+            properties.push({
+              name: prop,
+              displayName: propDisplayName,
+              description: '',
+              value: transformValue,
+              displayValue: transformValue,
+              tooltip: '',
+            });
+            break;
+          }
+
+
+
+
+
+
+
+
+
+
+
+
+private fetchingEnums: { [key: string]: Promise<void> } = {};
 
 
 private cachedEnums: IEnumCached[] = [];

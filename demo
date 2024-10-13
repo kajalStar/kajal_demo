@@ -1,4 +1,7 @@
-  private cachedEnums: IEnumCached[] = [];
+  private fetchingEnums: { [key: string]: Promise<void> } = {};
+
+
+private cachedEnums: IEnumCached[] = [];
  
  
 export interface IEnumCached {

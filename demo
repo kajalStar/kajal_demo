@@ -1,3 +1,84 @@
+
+
+
+
+
+
+
+
+import { Component } from '@angular/core';
+import { IBuildInfo } from 'src/app/resources/buildInfo';
+import { BuildInfoService } from 'src/app/services/buildInfo.service';
+export enum ServerEnvironment {
+  Dev = 'Dev',
+  Local = 'Local',
+  QA = 'QA',
+}
+@Component({
+  selector: 'app-footer',
+  templateUrl: './footer.component.html',
+  styleUrls: ['./footer.component.scss'],
+})
+export class FooterComponent {
+  currentYear!: number;
+  buildInfo: IBuildInfo | null = null;
+  serverEnvironment = ServerEnvironment;
+  currentEnvironment: ServerEnvironment = ServerEnvironment.Local;
+  constructor(private buildInfoservice: BuildInfoService) {}
+  ngOnInit(): void {
+    this.getCurrentYear();
+    this.getApplicationVersion();
+  }
+ 
+  getCurrentYear(): void {
+    this.currentYear = new Date().getFullYear();
+  }
+ 
+  public async getApplicationVersion(): Promise<void> {
+    this.buildInfo = await this.buildInfoservice.getBuildInfo();
+  }
+}
+ 
+ 
+<div class="footer-component">
+  <div class="row align-items-center">
+    <div class="col-md-4"></div>
+    <div class="col-md-4 text-center">
+      <img src="../../../../assets/Zennovate_1.png" alt="" class="imgPath" />
+    </div>
+    <div class="col-md-4 text-md-end">
+      <h5>
+        &copy; {{ currentYear }} ZENvy Invoicing System. All Rights Reserved.
+        ({{ buildInfo?.Version }}) - Environment: {{ currentEnvironment }}
+      </h5>
+    </div>
+  </div>
+</div>
+ 
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 src_app_pages_storm_storm_module_ts.js:2 ERROR Error: Uncaught (in promise): NullInjectorError: R3InjectorError(StormModule)[EnumNamePipe -> EnumNamePipe -> EnumNamePipe]: 
   NullInjectorError: No provider for EnumNamePipe!
 NullInjectorError: NullInjectorError: No provider for EnumNamePipe!

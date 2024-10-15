@@ -1,3 +1,20 @@
+
+private clearZoneSiblings() {
+  this.ZoneSiblings = []; // Clear the zone siblings array
+  this.currentLocationLayer.clearLayers(); // Clear current location layer if necessary
+  // Optionally, you can also remove the zone sibling markers from the map
+  this.geoMap?.eachLayer((layer) => {
+    if (layer instanceof L.LayerGroup) {
+      layer.clearLayers(); // Clear layers within the group
+    }
+  });
+  // You may want to show a message or handle the UI accordingly
+  this.showTransientMessage('Zone siblings cleared');
+}
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

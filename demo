@@ -3,6 +3,41 @@ private getDivIcon(
   className: string,
   iconColor: string,
   iconSizePx: string = '30px',
+  opacity: number = 0.5, // Default opacity
+  scale: number = 1 // Default scale
+): L.DivIcon {
+  let iconHtml: string = `
+    <i class="material-icons ${className}" 
+    style="
+      color: ${iconColor};
+      font-size: ${iconSizePx};
+      opacity: ${opacity};
+      -webkit-text-stroke-color: black;
+      transform: scale(${scale}); /* Set scale here */
+      transform-origin: center;" 
+      >${iconName}</i>
+    `;
+
+  let iconOptions = <L.DivIconOptions>{
+    html: iconHtml,
+    className: className,
+  };
+
+  return L.divIcon(iconOptions);
+}
+
+
+
+
+
+
+
+
+private getDivIcon(
+  iconName: string,
+  className: string,
+  iconColor: string,
+  iconSizePx: string = '30px',
   opacity: number = 0.5 // Default opacity
 ): L.DivIcon {
   let iconHtml: string = `

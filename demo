@@ -1,3 +1,27 @@
+
+.leaflet-control-scale {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.leaflet-control-scale .leaflet-control-scale-line {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.leaflet-control-scale .leaflet-control-scale-line {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+
+
+
+
+
+
+
+
 async onMapReady(map: L.Map) {
   this.geoMap = map;
   this.subscribeMapEvents();

@@ -1,0 +1,47 @@
+<mat-accordion>
+          <mat-expansion-panel *ngFor="let propGroup of propertiesGroups" class="mt-2" >
+            <mat-expansion-panel-header class="mt-6 ">
+              <mat-panel-title >
+                {{ (propGroup.name) }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>                      
+                       
+            <!-- Display message when no properties -->
+            <div
+              *ngIf="propGroup.properties.length === 0"
+              class="p-3 text-center mt-1"
+            >
+              <label>{{ getEmptyPropertyMessage(propGroup.name) }}</label>
+            </div>
+  
+            <!-- Display table when properties are present -->
+            <table
+              mat-table
+              [dataSource]="propGroup.properties"
+              class="list-table"
+              *ngIf="propGroup.properties.length > 0"
+            >
+              <!-- Define columns -->
+              <ng-container matColumnDef="displayName">
+                <th mat-header-cell *matHeaderCellDef> Name </th>
+                <td mat-cell *matCellDef="let property">
+                  {{ property.displayName }}
+                </td>
+              </ng-container>
+  
+              <ng-container matColumnDef="value">
+                <th mat-header-cell *matHeaderCellDef> Value </th>
+                <td mat-cell *matCellDef="let property">
+                  {{ property.value }}
+                </td>
+              </ng-container>
+  
+              <!-- Table rows -->
+              <tr
+                mat-row
+                *matRowDef="let row; columns: ['displayName', 'value']"
+                class="list-table-row"
+              ></tr>
+            </table>
+          </mat-expansion-panel>
+        </mat-accordion>

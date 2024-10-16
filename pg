@@ -1,0 +1,45 @@
+<mat-tab-group
+        mat-stretch-tabs="false"
+        mat-align-tabs="start"
+        animationDuration="0ms"
+      >
+        <mat-tab
+          label="{{ propGroup.name }}"
+          *ngFor="let propGroup of propertiesGroups"
+        >
+          <div
+            *ngIf="propGroup.properties.length == 0"
+            class="p-3 text-center mt-1"
+          >
+            <label>{{ getEmptyPropertyMessage(propGroup.name) }}</label>
+          </div>
+          <div
+            class="row mb-2 mt-2 border-bottom pb-2 me-0"
+            *ngFor="let property of propGroup.properties"
+          >
+            <div class="col-1">
+              <span
+                (click)="onToggleChildPropertyView(property)"
+                *ngIf="property.children && !property.isExpanded"
+              >
+                <mat-icon class="fs-6"> add_circle </mat-icon>
+              </span>
+              <span
+                (click)="onToggleChildPropertyView(property)"
+                *ngIf="property.children && property.isExpanded"
+              >
+                <mat-icon class="fs-6"> remove_circle </mat-icon>
+              </span>
+            </div>
+            <div class="col-5">{{ property.displayName }}</div>
+            <div class="col-6">{{ property.value }}</div>
+            <div class="col-12 m-0" *ngIf="property.isExpanded">
+              <div class="row mb-1" *ngFor="let property of property.children">
+                <div class="col-1"></div>
+                <div class="col-5">{{ property.displayName }}</div>
+                <div class="col-6">{{ property.value }}</div>
+              </div>
+            </div>
+          </div>
+        </mat-tab>
+      </mat-tab-group>

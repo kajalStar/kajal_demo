@@ -1,3 +1,43 @@
+private zoneSiblingLayer: any; // Create a property to store the layer
+
+private async onZoneSiblingSelected() {
+  try {
+    console.log(this.site.zone);
+    this.ZoneSiblings = await this.storeService.getZoneSibling(this.site.zone);
+
+    // Check if the layer already exists; if so, remove it
+    if (this.zoneSiblingLayer) {
+      this.geoMap.removeLayer(this.zoneSiblingLayer);
+    }
+
+    // Create the layer again with updated data
+    this.zoneSiblingLayer = this.getZoneSiblingLayer(this.ZoneSiblings);
+    this.zoneSiblingLayer.addTo(this.geoMap!);
+  } catch (ex: unknown) {
+    this.updateErrorFromException(ex);
+  }
+}
+
+private onZoneSiblingDeselected() {
+  // Check if the layer exists, then remove it
+  if (this.zoneSiblingLayer) {
+    this.geoMap.removeLayer(this.zoneSiblingLayer);
+    this.zoneSiblingLayer = null; // Clear the reference
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 private clearZoneSiblings() {
   this.ZoneSiblings = []; // Clear the zone siblings array

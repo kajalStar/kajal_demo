@@ -1,0 +1,524 @@
+import { Overlay } from '@angular/cdk/overlay';
+import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
+import { Component, NgZone, OnInit, ViewChild } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Sort } from '@angular/material/sort';
+import { ActivatedRoute, Params, Router } from '@angular/router';
+import { NGXLogger } from 'ngx-logger';
+import { filter, map, pairwise, throttleTime } from 'rxjs';
+import { ICustomChip } from 'src/app/resources/custom-chip';
+import { ISite } from 'src/app/resources/site';
+import { ISiteAdvanceSearch } from 'src/app/resources/store-search-filter';
+import { EnumService } from 'src/app/services/enum.service';
+import { SiteService } from 'src/app/services/site.service';
+import { BaseListPageComponent } from 'src/app/shared/components/base-list-page/base-list-page.component';
+import { ISimpleSearchFilter } from 'src/app/shared/models/simple-search-filter';
+import { IDataFilter } from 'src/app/shared/resources/data-filter';
+import { IPropertyInfoGroup } from 'src/app/shared/resources/property-info';
+import { IToolbarButton } from 'src/app/shared/resources/toolbar-button';
+import { Utils } from 'src/app/shared/utils/utils';
+import { SiteAdvanceSearchComponent } from '../site-advance-search/site-advance-search.component';
+
+@Component({
+  selector: 'app-sites-list',
+  templateUrl: './sites-list.component.html',
+  styleUrls: ['./sites-list.component.scss'],
+})
+export class SitesListComponent
+  extends BaseListPageComponent<ISite>
+  implements OnInit {
+  selectedSite: ISite = <ISite>{};
+  site: string = ''
+
+  selectedItemPropertyGroups: IPropertyInfoGroup[] = [];
+  toolbarButtons: Array<IToolbarButton> = [];
+  sortFilter: Sort = <Sort>{};
+  searchFilters: ICustomChip[] = [];
+  previousSelectedValues: { [key: string]: string } = {};
+  storedAdvFilter: ISiteAdvanceSearch = <ISiteAdvanceSearch>{};
+
+  searchText: string = '';
+  selectedTeam: string = '';
+  selectedZone: string = ''
+  selectedCity: string = '';
+  selectedState: string = '';
+  selectedSites: string = '';
+  selectedWeekday: string = '';
+  selectedWeekend: string = '';
+
+  currentStaffIndicators: ISite[] = [];
+  currentStaffData: ISite | undefined;
+  matchCount: number = 0;
+  currentPageIndex: number = 0;
+  pageSize: number = 10;
+
+  loading = false;
+  private hasMoreData = true;
+
+  @ViewChild(CdkVirtualScrollViewport) viewport!: CdkVirtualScrollViewport;
+
+  storeData: ISite[] = [];
+  constructor(
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    public dialog: MatDialog,
+    private storeService: SiteService,
+    private ngZone: NgZone,
+    private enumService: EnumService
+  ) {
+    super(
+      logger,
+      router,
+      activatedRoute,
+      snackBar,
+      overlay,
+      storeService
+    );
+  }
+
+  async ngOnInit() {
+    await this.onSearchClick();
+    if (!Utils.isNullOrUndefined(this.viewport)) {
+      this.setupScrollListeners(this.viewport);
+    }
+  }
+
+  /**
+   * Sets up a scroll listener for the provided `CdkVirtualScrollViewport` instance.
+   * This function attaches a scroll event listener to the viewport and processes
+   * scroll events to trigger data fetching when certain conditions are met.
+   * @param viewport
+   */
+
+  setupScrollListeners(viewport: CdkVirtualScrollViewport) {
+    // Attach scroll listener for the viewport
+    this.viewport
+      .elementScrolled()
+      .pipe(
+        map(() => this.viewport.measureScrollOffset('bottom')),
+        pairwise(),
+        filter(([y1, y2]) => y2 < y1 && y2 < 70),
+        throttleTime(200)
+      )
+      .subscribe(() => {
+        this.ngZone.run(() => {
+          this.fetchMoreData();
+        });
+      });
+  }
+  /**
+   * Fetches additional data from the server and updates the component's state accordingly.
+   */
+  fetchMoreData(): void {
+    this.loading = true;
+    let filter = <ISimpleSearchFilter>{ search_text: this.searchText };
+    this.storeService
+      .findItems(this.current_page_index + 1, this.page_size, filter)
+      .then((result) => {
+        this.filter = filter;
+        this.current_page_index = result.page_index;
+        this.page_size = result.page_size;
+        this.match_count = result.match_count;
+        this.items = this.filterAndReturnStaffList(this.items, result.items);
+
+        this.hasMoreData = result.items.length > 0;
+        this.loading = false;
+      })
+      .catch(() => {
+        this.loading = false;
+        this.hasMoreData = false;
+      });
+  }
+
+  filterAndReturnStaffList(
+    siteData: ISite[],
+    serverIndicators: ISite[]
+  ): ISite[] {
+    let filteredSiteList: ISite[] = [...siteData];
+
+    serverIndicators.forEach((indicator) => {
+      let indicatorItem = filteredSiteList.find((x) => x.id == indicator.id);
+      let selectedProjectIndicatorItem = this.currentStaffIndicators.find(
+        (x) => x.id == indicator.id
+      );
+      if (!indicatorItem && !selectedProjectIndicatorItem) {
+        filteredSiteList.push(indicator);
+      }
+    });
+
+    return filteredSiteList;
+  }
+
+  protected override async onSelectionChanged(selectedItems: ISite[]) {
+    try {
+      this.clearErrors();
+      if (!Utils.isEmptyArray(selectedItems)) {
+        this.selectedSite = selectedItems[0];
+        this.site = this.selectedSite.site
+
+      } else {
+        this.selectedSite = <ISite>{};
+      }
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    }
+  }
+
+  /**
+  * Extends the base class method to add additional query parameters to the `queryParams` object.
+ * This method incorporates specific filter criteria from the `filter` object and the search text.
+ 
+ * @param queryParams 
+ */
+
+  protected override addQueryParams(queryParams: Params): void {
+    super.addQueryParams(queryParams);
+
+    let tempFilter = <ISiteAdvanceSearch>this.filter;
+    queryParams['q'] = tempFilter.search_text || '';
+    if (
+      tempFilter.team !== null &&
+      tempFilter.team !== undefined &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.team)
+    ) {
+      queryParams['team'] = tempFilter.team;
+    }
+    if (
+      tempFilter.zone !== null &&
+      tempFilter.zone !== undefined &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.zone)
+    ) {
+      queryParams['zone'] = tempFilter.zone || '';
+    }
+    if (tempFilter.city && !Utils.isEmptyOrWhiteSpace(tempFilter.city)) {
+      queryParams['city'] = tempFilter.city || '';
+    }
+    if (tempFilter.state && !Utils.isEmptyOrWhiteSpace(tempFilter.state)) {
+      queryParams['state'] = tempFilter.state || '';
+    }
+    if (tempFilter.we_dist && !Utils.isEmptyOrWhiteSpace(tempFilter.we_dist)) {
+      queryParams['we_dist'] = tempFilter.we_dist || '';
+    }
+    if (tempFilter.wd_dist && !Utils.isEmptyOrWhiteSpace(tempFilter.wd_dist)) {
+      queryParams['wd_dist'] = tempFilter.wd_dist || '';
+    }
+    queryParams['q'] = this.searchText;
+
+  }
+
+  // public onHandlePageNavigation(pgEvent: PageEvent): any {
+  //   this.onGotoPage(pgEvent.pageIndex);
+  // }
+
+  /**
+   * Helper method to create a filter which we pass to backend to get filtered data with params
+   * @param params
+   * @returns
+   */
+  protected override getDataFilterFromQueryParams(params: Params): IDataFilter {
+    this.searchText = params['q'] || '';
+    this.page_size = <number>params['pg_sz'] || this.page_size;
+    this.searchFilters = [];
+    this.storedAdvFilter = {
+      search_text: params['q'] || '',
+      zone: params['zone'] || '',
+      team: params['team'] || '',
+      city: params['city'] || '',
+      state: params['state'] || '',
+      we_dist: params['we_dist'] || '',
+      wd_dist: params['wd_dist'] || '',
+    };
+    this.updateSearchFilters(this.storedAdvFilter);
+    return this.storedAdvFilter;
+  }
+
+  /**
+   * This function is an overridden method that processes query parameters when they become available.
+   * It constructs a filter object based on specific query parameters and sets default values for previously
+   * selected filter values.
+   * @param params
+   * @returns
+   */
+  protected override onQueryParamsAvailable(params: Params): Promise<void> {
+    const filter: ISiteAdvanceSearch = <ISiteAdvanceSearch>{};
+
+    if ('team' in params) {
+      filter.team = params['team'];
+    }
+    if ('zone' in params) {
+      filter.zone = params['zone'];
+    }
+    if ('we_dist' in params) {
+      filter.we_dist = params['we_dist'];
+    }
+    if ('wd_dist' in params) {
+      filter.wd_dist = params['wd_dist'];
+    }
+    if ('state' in params) {
+      filter.state = params['state'];
+    }
+    if ('city' in params) {
+      filter.city = params['city'];
+    }
+
+    this.previousSelectedValues = {
+      selectedZone: filter.zone || '',
+
+      selectedTeam: filter.team || '',
+
+      selectedCity: filter.city || '',
+      selectedState: filter.state || '',
+      selectedWeekday: filter.wd_dist || '',
+      selectedWeekend: filter.we_dist || '',
+    };
+    return super.onQueryParamsAvailable(params);
+  }
+
+  /**
+ * Override the onToggleSelection method to handle item selection.
+ * This method ensures that an item remains selected and does not get unselected when clicked again.
+ *
+ * @param item - The item to be toggled in the selection.
+ */
+  public override async onToggleSelection(item: ISite) {
+    // Check if selection is allowed
+    if (!this.allowSelection()) {
+      return;
+    }
+
+    // Create a copy of the current selections
+    let currentSelections = this.selectedItems.slice();
+
+    // Find the index of the item in the current selections
+    let index: number = currentSelections.findIndex((x) => x.id === item.id);
+
+    if (this.allowMultipleSelection()) {
+      // Multiple selection mode
+      if (index < 0) {
+        // Item is not selected, so add it to the selection
+        currentSelections.push(item);
+      }
+      // Do nothing if the item is already selected
+    } else {
+      // Single selection mode
+      if (index < 0) {
+        // Item is not selected, so add it to the selection
+        currentSelections = [item];
+      }
+      // Do nothing if the item is already selected
+    }
+
+    // Update the selection state
+    this.setSelection(currentSelections);
+  }
+
+
+  /**
+   * Handles the event when the search button is clicked.
+   * This function initiates a search by navigating to the first page of the search results.
+   */
+  async onSearchClick() {
+    this.onGotoPage(0);
+    this.updateSearchFilters(this.storedAdvFilter);
+
+  }
+
+  /* This function opens an advanced search dialog for refining search filters.
+   * It configures and displays a modal dialog, and handles the user's input after the dialog is closed.
+   */
+
+  onShowAdvancedSearchDialog() {
+    const title = ' Search Sites';
+    const message = '';
+    const dialogRef = this.dialog.open(SiteAdvanceSearchComponent, {
+      width: '750px',
+      data: {
+        title,
+        message,
+        searchFilter: this.storedAdvFilter,
+        searchFilters: this.searchFilters,
+        previousSelectedValues: this.previousSelectedValues,
+      },
+      restoreFocus: false,
+      autoFocus: false,
+    });
+    dialogRef.afterClosed().subscribe((searchFilter: ISiteAdvanceSearch) => {
+      if (!Utils.isNullOrUndefined(searchFilter)) {
+        this.filter = searchFilter;
+
+        this.onGotoPage(0);
+        this.updateSearchFilters(searchFilter);
+      }
+    });
+  }
+
+  /**
+   * Updates the search filters by creating and populating `ICustomChip` objects
+   * based on the provided `filter` object. Each chip represents a search filter and is
+   * added to the `searchFilters` array if its corresponding property in the `filter`
+   * object is present.
+   *  * @param filter
+   */
+
+  private async updateSearchFilters(filter: ISiteAdvanceSearch) {
+    this.searchFilters = [];
+    console.log(filter.search_text, 'l');
+
+    if (filter.zone) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'zone';
+      chip.chipName = 'Zone: ' + filter.zone;
+
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'zone'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+    if (filter.team) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'team';
+      chip.chipName = 'Team: ' + filter.team;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'team'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.city) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'city';
+      chip.chipName = 'City: ' + filter.city;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'city'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.state) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'state';
+      chip.chipName = ' State: ' + filter.state;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'state'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+    if (filter.we_dist) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'we_dist';
+      chip.chipName = ' Weekend: ' + filter.we_dist;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'we_dist'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.wd_dist) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'wd_dist';
+      chip.chipName = ' Weekday: ' + filter.wd_dist;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'wd_dist'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+      if (filter.search_text && !Utils.isEmptyOrWhiteSpace(filter.search_text)) {
+        let chip: ICustomChip = {
+          propertyName: 'search_text',
+          chipName: 'Search: ' + filter.search_text
+        };
+
+        // const index = this.searchFilters.findIndex(
+        //   (x) => x.propertyName === 'search_text'
+        // );
+        // if (index === -1) {
+        //   console.log(chip);
+
+        this.searchFilters.push(chip);
+        // }
+      
+    }
+  }
+
+  /**
+   * Removes the specified chip (search filter) from the search filters list.
+   * Updates the filter object accordingly and triggers a page navigation to the first page.
+   * @param chip The chip (search filter) value to be removed.
+   */
+  removeChip(propertyName: string): void {
+    if (!Utils.isEmptyOrWhiteSpace(propertyName)) {
+      Object.defineProperty(this.filter, propertyName, {
+        value: '',
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      this.onGotoPage(this.current_page_index);
+    }
+  }
+
+  onUpdateStaff() {
+    // let staffDetails: IStore = this.selectedItems[0];
+    // const isDisabled = true;
+    // const title =
+    //   'Updating site Details' +
+    //   ' » ' +
+    //   staffDetails?.first_name +
+    //   ' ' +
+    //   staffDetails?.last_name;
+    // const message = '';
+    // const dialogRef = this.dialog.open(StaffEditorComponent, {
+    //   width: '750px',
+    //   data: {
+    //     title,
+    //     message,
+    //     searchFilter: this.filter,
+    //     searchFilters: this.searchFilters,
+    //     previousSelectedValues: this.previousSelectedValues,
+    //   },
+    //   restoreFocus: false,
+    //   autoFocus: false,
+    // });
+    // dialogRef.afterClosed().subscribe((searchFilter: IStore) => {
+    //   if (!Utils.isNullOrUndefined(searchFilter)) {
+    //     this.filter = searchFilter;
+    //     this.onGotoPage(0);
+    //     // this.updateSearchFilters(searchFilter);
+    //   }
+    // });
+  }
+}

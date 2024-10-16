@@ -1,0 +1,537 @@
+import { Overlay } from '@angular/cdk/overlay';
+import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
+import { Component, NgZone, ViewChild } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { PageEvent } from '@angular/material/paginator';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Params, Router } from '@angular/router';
+import { NGXLogger } from 'ngx-logger';
+import { filter, map, pairwise, throttleTime } from 'rxjs';
+import { ICustomChip } from 'src/app/resources/custom-chip';
+import { IVan } from 'src/app/resources/van';
+import { VanService } from 'src/app/services/van.service';
+import { BaseListPageComponent } from 'src/app/shared/components/base-list-page/base-list-page.component';
+import { ISimpleSearchFilter } from 'src/app/shared/models/simple-search-filter';
+import { IDataFilter } from 'src/app/shared/resources/data-filter';
+import { Utils } from 'src/app/shared/utils/utils';
+import { environment } from 'src/assets/environment/environment ';
+import { VanAdvanceSearchComponent } from '../van-advance-search/van-advance-search.component';
+import { IVanAdvanceSearch } from 'src/app/resources/van-search-filter';
+import { Sort } from '@angular/material/sort';
+import { DatePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-van-list-page',
+  templateUrl: './van-list-page.component.html',
+  styleUrls: ['./van-list-page.component.scss'],
+  providers: [DatePipe],
+})
+export class VanListPageComponent extends BaseListPageComponent<IVan> {
+  selectedVan: IVan = <IVan>{};
+  vanData: IVan[] = [];
+
+  @ViewChild(CdkVirtualScrollViewport) viewport!: CdkVirtualScrollViewport;
+  private hasMoreData = true;
+  loading = false;
+  ortFilter: Sort = <Sort>{};
+  search_text: string = '';
+  searchFilters: ICustomChip[] = [];
+  previousSelectedValues: { [key: string]: string } = {};
+  storedAdvFilter: IVanAdvanceSearch = <IVanAdvanceSearch>{};
+  uiDateFormat = environment.uiDateFormate;
+  vehicle: IVanAdvanceSearch[] = []
+
+  staffId: string = '';
+  currentStaffIndicators: IVan[] = [];
+  currentStaffData: IVan | undefined;
+  matchCount: number = 0;
+  currentPageIndex: number = 0;
+  pageSize: number = 10;
+
+  constructor(
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    private datePipe: DatePipe,
+    public dialog: MatDialog,
+    private vanService: VanService,
+    private ngZone: NgZone
+  ) {
+    super(logger, router, activatedRoute, snackBar, overlay, vanService);
+  }
+
+  async ngOnInit() {
+  }
+
+  /**
+   * Sets up a scroll listener for the provided `CdkVirtualScrollViewport` instance.
+   * This function attaches a scroll event listener to the viewport and processes
+   * scroll events to trigger data fetching when certain conditions are met.
+   * @param viewport
+   */
+
+  setupScrollListeners(viewport: CdkVirtualScrollViewport) {
+    // Attach scroll listener for the viewport
+    this.viewport
+      .elementScrolled()
+      .pipe(
+        map(() => this.viewport.measureScrollOffset('bottom')),
+        pairwise(),
+        filter(([y1, y2]) => y2 < y1 && y2 < 70),
+        throttleTime(200)
+      )
+      .subscribe(() => {
+        this.ngZone.run(() => {
+          this.fetchMoreData();
+        });
+      });
+  }
+  /**
+   * Fetches additional data from the server and updates the component's state accordingly.
+   */
+  fetchMoreData(): void {
+    this.loading = true;
+    let filter = <ISimpleSearchFilter>{ search_text: this.search_text };
+    this.vanService
+      .findItems(this.current_page_index + 1, this.page_size, filter)
+      .then((result) => {
+        this.filter = filter;
+        this.current_page_index = result.page_index;
+        this.page_size = result.page_size;
+        this.match_count = result.match_count;
+        this.items = this.filterAndReturnStaffList(this.items, result.items);
+
+        this.hasMoreData = result.items.length > 0;
+        this.loading = false;
+      })
+      .catch(() => {
+        this.loading = false;
+        this.hasMoreData = false;
+      });
+  }
+
+  filterAndReturnStaffList(vanData: IVan[], serverIndicators: IVan[]): IVan[] {
+    let filteredStaffList: IVan[] = [...vanData];
+
+    serverIndicators.forEach((indicator) => {
+      let indicatorItem = filteredStaffList.find((x) => x.id == indicator.id);
+      let selectedProjectIndicatorItem = this.currentStaffIndicators.find(
+        (x) => x.id == indicator.id
+      );
+      if (!indicatorItem && !selectedProjectIndicatorItem) {
+        filteredStaffList.push(indicator);
+      }
+    });
+
+    return filteredStaffList;
+  }
+
+  protected override async onSelectionChanged(selectedItems: IVan[]) {
+    try {
+      this.clearErrors();
+      if (!Utils.isEmptyArray(selectedItems)) {
+        this.selectedVan = selectedItems[0];
+      } else {
+        this.selectedVan = <IVan>{};
+      }
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    }
+  }
+
+  /**
+    * Extends the base class method to add additional query parameters to the `queryParams` object.
+   * This method incorporates specific filter criteria from the `filter` object and the search text.
+   
+   * @param queryParams 
+   */
+
+  protected override addQueryParams(queryParams: Params): void {
+    super.addQueryParams(queryParams);
+
+    let tempFilter = <IVanAdvanceSearch>this.filter;
+    queryParams['q'] = tempFilter.search_text || '';
+    if (
+      tempFilter.zone !== null &&
+      tempFilter.zone !== undefined &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.zone)
+    ) {
+      queryParams['zone'] = tempFilter.zone || '';
+    }
+    if (
+      tempFilter.vehicle_status &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.vehicle_status)
+    ) {
+      queryParams['vehicle_status'] = tempFilter.vehicle_status || '';
+    }
+    if (
+      tempFilter.delivery_date_from &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.delivery_date_from)
+    ) {
+      queryParams['delivery_date_from'] = tempFilter.delivery_date_from || '';
+    }
+    if (
+      tempFilter.delivery_date_to &&
+      !Utils.isEmptyOrWhiteSpace(tempFilter.delivery_date_to)
+    ) {
+      queryParams['delivery_date_to'] = tempFilter.delivery_date_to || '';
+    }
+
+    if (tempFilter.sold_date_from && !Utils.isEmptyOrWhiteSpace(tempFilter.sold_date_from)) {
+      queryParams['sold_date_from'] = tempFilter.sold_date_from || '';
+    }
+    if (tempFilter.sold_date_to && !Utils.isEmptyOrWhiteSpace(tempFilter.sold_date_to)) {
+      queryParams['sold_date_to'] = tempFilter.sold_date_to || '';
+    }
+
+    if (tempFilter.state && !Utils.isEmptyOrWhiteSpace(tempFilter.state)) {
+      queryParams['state'] = tempFilter.state || '';
+    }
+    if (tempFilter.city && !Utils.isEmptyOrWhiteSpace(tempFilter.city)) {
+      queryParams['city'] = tempFilter.city || '';
+    }
+    queryParams['q'] = this.search_text;
+  }
+
+  public onHandlePageNavigation(pgEvent: PageEvent): any {
+    this.onGotoPage(pgEvent.pageIndex);
+  }
+
+  /**
+   * Helper method to create a filter which we pass to backend to get filtered data with params
+   * @param params
+   * @returns
+   */
+  protected override getDataFilterFromQueryParams(params: Params): IDataFilter {
+    this.search_text = params['q'] || '';
+    this.pageSize = <number>params['pg_sz'] || this.pageSize;
+    this.searchFilters = [];
+
+    // const sortAscending = params['sort_dir'] === 'asc';
+    const filter: IVanAdvanceSearch = <IVanAdvanceSearch>{
+      search_text: params['q'] || '',
+      delivery_date: params['delivery_date'] || '',
+      sold_date: params['sold_date'] || '',
+      vehicle_status: params['vehicle_status'] || 'Active',
+      zone: params['zone'] || '',
+      state: params['state'] || '',
+      city: params['city'] || '',
+      delivery_date_from: params['delivery_date_from'] || '',
+      delivery_date_to: params['delivery_date_to'] || '',
+      sold_date_from: params['sold_date_from'] || '',
+      sold_date_to: params['sold_date_to'] || '',
+    };
+    this.updateSearchFilters(filter);
+
+    return filter;
+  }
+
+  /**
+   * This function is an overridden method that processes query parameters when they become available.
+   * It constructs a filter object based on specific query parameters and sets default values for previously
+   * selected filter values.
+   * @param params
+   * @returns
+   */
+  protected override onQueryParamsAvailable(params: Params): Promise<void> {
+    const filter: IVanAdvanceSearch = <IVanAdvanceSearch>{};
+
+    if ('vehicle_status' in params) {
+      filter.vehicle_status = params['vehicle_status'];
+    }
+    if ('zone' in params) {
+      filter.zone = params['zone'];
+    }
+    if ('delivery_date_from' in params) {
+      filter.delivery_date_from = params['delivery_date_from'];
+    }
+    if ('delivery_date_to' in params) {
+      filter.delivery_date_to = params['delivery_date_to'];
+    }
+
+    if ('sold_date_from' in params) {
+      filter.sold_date_from = params['sold_date_from'];
+    }
+    if ('sold_date_to' in params) {
+      filter.sold_date_to = params['sold_date_to'];
+    }
+
+    if ('state' in params) {
+      filter.state = params['state'];
+    }
+    if ('city' in params) {
+      filter.city = params['city'];
+    }
+    this.previousSelectedValues = {
+      selectedDeliveryFromDate: filter.delivery_date_from || '',
+      selectedDeliveryToDate: filter.delivery_date_to || '',
+      selectedZone: filter.zone || '',
+      selectedCity: filter.city || '',
+      selectedState: filter.state || '',
+      selectedVehicleStatus: filter.vehicle_status || '',
+      selectedSoldFromDate: filter.sold_date_from || '',
+      selectedSoldToDate: filter.sold_date_to || '',
+    };
+
+    return super.onQueryParamsAvailable(params);
+  }
+
+/**
+ * Override the onToggleSelection method to handle item selection.
+ * This method ensures that an item remains selected and does not get unselected when clicked again.
+ *
+ * @param item - The item to be toggled in the selection.
+ */
+public override async onToggleSelection(item: IVan) {
+  // Check if selection is allowed
+  if (!this.allowSelection()) {
+    return;
+  }
+
+  // Create a copy of the current selections
+  let currentSelections = this.selectedItems.slice();
+
+  // Find the index of the item in the current selections
+  let index: number = currentSelections.findIndex((x) => x.id === item.id);
+
+  if (this.allowMultipleSelection()) {
+    // Multiple selection mode
+    if (index < 0) {
+      // Item is not selected, so add it to the selection
+      currentSelections.push(item);
+    }
+    // Do nothing if the item is already selected
+  } else {
+    // Single selection mode
+    if (index < 0) {
+      // Item is not selected, so add it to the selection
+      currentSelections = [item];
+    }
+    // Do nothing if the item is already selected
+  }
+
+  // Update the selection state
+  this.setSelection(currentSelections);
+}
+
+
+
+  /**
+   * Handles the event when the search button is clicked.
+   * This function initiates a search by navigating to the first page of the search results.
+   */
+  async onSearchClick() {
+    this.onGotoPage(0);
+  }
+
+  /* This function opens an advanced search dialog for refining search filters.
+   * It configures and displays a modal dialog, and handles the user's input after the dialog is closed.
+   */
+
+  onShowAdvancedSearchDialog() {
+    const title = ' Search Vans';
+    const message = '';
+    const dialogRef = this.dialog.open(VanAdvanceSearchComponent, {
+      width: '780px',
+      data: {
+        title,
+        message,
+        searchFilter: this.filter,
+        searchFilters: this.searchFilters,
+        previousSelectedValues: this.previousSelectedValues,
+      },
+      restoreFocus: false,
+      autoFocus: false,
+    });
+    dialogRef.afterClosed().subscribe((searchFilter: IVanAdvanceSearch) => {
+      if (!Utils.isNullOrUndefined(searchFilter)) {
+        this.filter = searchFilter;
+        this.onGotoPage(0);
+        this.updateSearchFilters(searchFilter);
+      }
+    });
+  }
+
+  /**
+   * Removes the specified chip (search filter) from the search filters list.
+   * Updates the filter object accordingly and triggers a page navigation to the first page.
+   * @param chip The chip (search filter) value to be removed.
+   */
+  removeChip(propertyName: string): void {
+    if (!Utils.isEmptyOrWhiteSpace(propertyName)) {
+      Object.defineProperty(this.filter, propertyName, {
+        value: '',
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      this.onGotoPage(this.current_page_index);
+    }
+  }
+
+
+  onUpdateStaff() {
+    // let staffDetails: IVan = this.selectedItems[0];
+    // const isDisabled = true;
+    // const title =
+    //   'Updating Staff Details' +
+    //   ' » ' +
+    //   staffDetails?.first_name +
+    //   ' ' +
+    //   staffDetails?.last_name;
+    // const message = '';
+    // const dialogRef = this.dialog.open(StaffEditorComponent, {
+    //   width: '750px',
+    //   data: {
+    //     title,
+    //     message,
+    //     searchFilter: this.filter,
+    //     searchFilters: this.searchFilters,
+    //     previousSelectedValues: this.previousSelectedValues,
+    //   },
+    //   restoreFocus: false,
+    //   autoFocus: false,
+    // });
+    // dialogRef.afterClosed().subscribe((searchFilter: IStaff) => {
+    //   if (!Utils.isNullOrUndefined(searchFilter)) {
+    //     this.filter = searchFilter;
+    //     this.onGotoPage(0);
+    //     // this.updateSearchFilters(searchFilter);
+    //   }
+    // });
+  }
+  /**
+   * Updates the search filters by creating and populating `ICustomChip` objects
+   * based on the provided `filter` object. Each chip represents a search filter and is
+   * added to the `searchFilters` array if its corresponding property in the `filter`
+   * object is present.
+   *  * @param filter
+   */
+
+  private async updateSearchFilters(filter: IVanAdvanceSearch) {
+    this.searchFilters = [];
+    if (filter.zone) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'zone';
+      chip.chipName = 'Zone: ' + filter.zone;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'zone'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.state) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: ' ',
+      };
+      chip.propertyName = 'state';
+      chip.chipName = 'State: ' + filter.state;
+
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'state'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.city) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '  ',
+      };
+      chip.propertyName = 'city';
+      chip.chipName = 'City: ' + filter.city;
+
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'city'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.delivery_date_from) {
+      let delivery_date_from = this.datePipe.transform(
+        filter.delivery_date_from,
+        this.uiDateFormat
+      );
+      let chip: ICustomChip = { propertyName: '', chipName: '' };
+      chip.propertyName = 'delivery_date_from';
+      chip.chipName = 'Delivery Date From: ' + delivery_date_from;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'delivery_date_from'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+    if (filter.delivery_date_to) {
+      let delivery_date_to = this.datePipe.transform(
+        filter.delivery_date_to,
+        this.uiDateFormat
+      );
+      let chip: ICustomChip = { propertyName: '', chipName: '' };
+      chip.propertyName = 'delivery_date_to';
+      chip.chipName = 'Delivery Date To: ' + delivery_date_to;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'delivery_date_to'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+    if (filter.sold_date_from) {
+      let sold_date_from = this.datePipe.transform(
+        filter.sold_date_from,
+        this.uiDateFormat
+      );
+      let chip: ICustomChip = { propertyName: '', chipName: '' };
+      chip.propertyName = 'sold_date_from';
+      chip.chipName = 'Sold Date From: ' + sold_date_from;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'sold_date_from'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+    if (filter.sold_date_to) {
+      let sold_date_to = this.datePipe.transform(
+        filter.sold_date_to,
+        this.uiDateFormat
+      );
+      let chip: ICustomChip = { propertyName: '', chipName: '' };
+      chip.propertyName = 'sold_date_to';
+      chip.chipName = 'Sold Date To: ' + sold_date_to;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'sold_date_to'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+
+    if (filter.vehicle_status) {
+      let chip: ICustomChip = {
+        propertyName: '',
+        chipName: '',
+      };
+      chip.propertyName = 'vehicle_status';
+      chip.chipName = 'Vehicle Status: ' + filter.vehicle_status;
+      const index = this.searchFilters.findIndex(
+        (x) => x.propertyName === 'vehicle_status'
+      );
+      if (index === -1) {
+        this.searchFilters.push(chip);
+      }
+    }
+  }
+}

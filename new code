@@ -1,0 +1,35 @@
+<mat-accordion>
+  <mat-expansion-panel *ngFor="let propGroup of propertiesGroups" class="mt-2">
+    <mat-expansion-panel-header class="mt-6">
+      <mat-panel-title>
+        {{ propGroup.name }}
+      </mat-panel-title>
+    </mat-expansion-panel-header>
+
+    <!-- Display message when no properties -->
+    <div *ngIf="propGroup.properties.length === 0" class="p-3 text-center mt-1">
+      <label>{{ getEmptyPropertyMessage(propGroup.name) }}</label>
+    </div>
+
+    <!-- Display table when properties are present -->
+    <div *ngIf="propGroup.properties.length > 0">
+      <div class="row mb-2 mt-2 border-bottom pb-2 me-0" *ngFor="let property of propGroup.properties">
+        <div class="col-1">
+          <mat-icon (click)="property.isExpanded = !property.isExpanded" *ngIf="property.children">
+            {{ property.isExpanded ? 'remove_circle' : 'add_circle' }}
+          </mat-icon>
+        </div>
+        <div class="col-5">{{ property.displayName }}</div>
+        <div class="col-6">{{ property.value }}</div>
+        
+        <div class="col-12 m-0" *ngIf="property.isExpanded">
+          <div class="row mb-1" *ngFor="let childProperty of property.children">
+            <div class="col-1"></div>
+            <div class="col-5">{{ childProperty.displayName }}</div>
+            <div class="col-6">{{ childProperty.value }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </mat-expansion-panel>
+</mat-accordion>

@@ -1,0 +1,105 @@
+<div class="property-grid-view mt-3">
+    <!-- <mat-card>
+      <mat-card-content> -->
+        <!-- Toolbar -->
+        <div class="toolbar-container list-table-row-header">
+          <!-- Custom buttons -->
+          <span *ngIf="title">
+            <h2>{{title}}</h2>
+          </span>
+          <span *ngIf="hasCustomButtons()">
+            <button
+              (click)="onCustomBtnClick(tbBtn)"
+              mat-icon-button
+              *ngFor="let tbBtn of toolbarButtons"
+            >
+              <mat-icon>{{ tbBtn.icon }}</mat-icon>
+            </button>
+          </span>
+          <span class="horz-spacer"></span>
+          <!-- Standard buttons displayed at the right end -->
+          <span *ngIf="!hideDeleteButton">
+            <button
+              (click)="onDeleteBtnClick()"
+              mat-icon-button
+              matTooltip="Delete this item."
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </span>
+          <!-- Show separator only when both buttons are visible -->
+          <span *ngIf="hideDeleteButton === false && hideCloseButton === false">
+            |
+          </span>
+          <span *ngIf="!hideCloseButton">
+            <button
+              (click)="onCloseBtnClick()"
+              mat-icon-button
+              matTooltip="Close"
+            >
+              <mat-icon class="icon-75pc">close</mat-icon>
+            </button>
+          </span>
+        </div>
+        <hr *ngIf="hasAnyVisibleButton()">
+        <mat-accordion > 
+          <mat-expansion-panel >
+            <mat-expansion-panel-header >
+              <mat-panel-title> Service Requests </mat-panel-title>
+            </mat-expansion-panel-header>  
+            <app-service-request-list  [staffTechId]="staff.tech_id" [site]="siteData.site" ></app-service-request-list>
+          </mat-expansion-panel>
+        </mat-accordion>
+
+        <!-- Property grid -->
+        <mat-accordion>
+          <mat-expansion-panel *ngFor="let propGroup of propertiesGroups" class="mt-2" >
+            <mat-expansion-panel-header class="mt-6 ">
+              <mat-panel-title >
+                {{ (propGroup.name) }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>                      
+                       
+            <!-- Display message when no properties -->
+            <div
+              *ngIf="propGroup.properties.length === 0"
+              class="p-3 text-center mt-1"
+            >
+              <label>{{ getEmptyPropertyMessage(propGroup.name) }}</label>
+            </div>
+  
+            <!-- Display table when properties are present -->
+            <table
+              mat-table
+              [dataSource]="propGroup.properties"
+              class="list-table"
+              *ngIf="propGroup.properties.length > 0"
+            >
+              <!-- Define columns -->
+              <ng-container matColumnDef="displayName">
+                <th mat-header-cell *matHeaderCellDef> Name </th>
+                <td mat-cell *matCellDef="let property">
+                  {{ property.displayName }}
+                </td>
+              </ng-container>
+  
+              <ng-container matColumnDef="value">
+                <th mat-header-cell *matHeaderCellDef> Value </th>
+                <td mat-cell *matCellDef="let property">
+                  {{ property.value }}
+                </td>
+              </ng-container>
+  
+              <!-- Table rows -->
+              <tr
+                mat-row
+                *matRowDef="let row; columns: ['displayName', 'value']"
+                class="list-table-row"
+              ></tr>
+            </table>
+          </mat-expansion-panel>
+        </mat-accordion>
+      <!-- </mat-card-content>
+    </mat-card> -->
+  </div>
+  

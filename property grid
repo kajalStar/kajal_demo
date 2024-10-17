@@ -1,0 +1,100 @@
+<div class="property-grid-view">
+  <mat-card>
+    <mat-card-content>
+      <!-- toolbar -->
+      <div
+        class="toolbar-container list-table-row-header"
+        *ngIf="hasAnyVisibleButton()"
+      >
+        <mat-toolbar>
+          <span *ngIf="title" class=" title text-center mt-1">
+           {{ title }}
+          </span>
+          <!-- custom buttons -->
+          <span *ngIf="hasCustomButtons()">
+            <button
+              (click)="onCustomBtnClick(tbBtn)"
+              [disabled]="tbBtn.disabled"
+              mat-icon-button
+              *ngFor="let tbBtn of toolbarButtons"
+              matTooltip="{{ tbBtn.description }}"
+            >
+              <mat-icon>{{ tbBtn.icon }}</mat-icon>
+            </button>
+          </span>
+          <span class="horz-spacer"></span>
+          <!-- standard buttons displayed at the right end -->
+          <span *ngIf="!hideDeleteButton">
+            <button
+              (click)="onDeleteBtnClick()"
+              mat-icon-button
+              matTooltip="Delete this item."
+            >
+              <mat-icon>delete</mat-icon>
+            </button>
+          </span>
+          <!-- show separator only when both buttons are visible -->
+          <span *ngIf="hideDeleteButton === false && hideCloseButton === false"
+            >|</span
+          >
+          <span *ngIf="!hideCloseButton">
+            <button
+              (click)="onCloseBtnClick()"
+              mat-icon-button
+              matTooltip="Close"
+            >
+              <mat-icon class="icon-75pc">close</mat-icon>
+            </button>
+          </span>
+        </mat-toolbar>
+      </div>
+      <hr *ngIf="hasAnyVisibleButton()" class="m-0" />
+      <!-- property grid -->
+      <mat-tab-group
+        mat-stretch-tabs="false"
+        mat-align-tabs="start"
+        animationDuration="0ms"
+      >
+        <mat-tab
+          label="{{ propGroup.name }}"
+          *ngFor="let propGroup of propertiesGroups"
+        >
+          <div
+            *ngIf="propGroup.properties.length == 0"
+            class="p-3 text-center mt-1"
+          >
+            <label>{{ getEmptyPropertyMessage(propGroup.name) }}</label>
+          </div>
+          <div
+            class="row mb-2 mt-2 border-bottom pb-2 me-0"
+            *ngFor="let property of propGroup.properties"
+          >
+            <div class="col-1">
+              <span
+                (click)="onToggleChildPropertyView(property)"
+                *ngIf="property.children && !property.isExpanded"
+              >
+                <mat-icon class="fs-6"> add_circle </mat-icon>
+              </span>
+              <span
+                (click)="onToggleChildPropertyView(property)"
+                *ngIf="property.children && property.isExpanded"
+              >
+                <mat-icon class="fs-6"> remove_circle </mat-icon>
+              </span>
+            </div>
+            <div class="col-5">{{ property.displayName }}</div>
+            <div class="col-6">{{ property.value }}</div>
+            <div class="col-12 m-0" *ngIf="property.isExpanded">
+              <div class="row mb-1" *ngFor="let property of property.children">
+                <div class="col-1"></div>
+                <div class="col-5">{{ property.displayName }}</div>
+                <div class="col-6">{{ property.value }}</div>
+              </div>
+            </div>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,3 +1,98 @@
+
+
+private async addCurrentLocationLayer() {
+  // Clear the currentLocationLayer before adding new markers
+  this.currentLocationLayer.clearLayers();
+
+  if (Utils.isLocationDataAvailable(this.van.latitude, this.van.longitude)) {
+    // If van's latitude and longitude are available, add it to the map
+    const homeIcon = this.getDivIcon(
+      'airport_shuttle',
+      'airportShuttleIcon',
+      'crimson',
+      '29'
+    );
+
+    const storeMarker: L.Marker = L.marker(
+      L.latLng(this.van.latitude, this.van.longitude),
+      {
+        icon: homeIcon,
+      }
+    );
+    let tooltip = this.getVansProximityToolTip(this.van);
+    storeMarker.addTo(this.currentLocationLayer).bindTooltip(tooltip);
+  } else {
+    // If the van's latitude and longitude are not available,
+    // show the vans and sites in proximity
+    this.vanInProximity.forEach(van => {
+      if (Utils.isLocationDataAvailable(van.latitude, van.longitude)) {
+        const proximityIcon = this.getDivIcon(
+          'airport_shuttle',
+          'vanProximityIcon',
+          'darkgreen',
+          '22px'
+        );
+
+        const proximityMarker: L.Marker = L.marker(
+          L.latLng(van.latitude, van.longitude),
+          {
+            icon: proximityIcon,
+          }
+        );
+        let tooltip = this.getVansProximityToolTip(van);
+        proximityMarker.addTo(this.currentLocationLayer).bindTooltip(tooltip);
+      }
+    });
+
+    this.sitesInProximity.forEach(site => {
+      if (Utils.isLocationDataAvailable(site.latitude, site.longitude)) {
+        const siteIcon = this.getDivIcon(
+          'location_pin',
+          'circleIcon',
+          'purple',
+          '22px'
+        );
+
+        const siteMarker: L.Marker = L.marker(
+          L.latLng(site.latitude, site.longitude),
+          {
+            icon: siteIcon,
+          }
+        );
+        const tooltip = this.getZoneSiblingTooltip(site);
+        siteMarker.addTo(this.currentLocationLayer).bindTooltip(tooltip);
+      }
+    });
+  }
+
+  // Add to currentLocationLayer
+  this.currentLocationLayer.addTo(this.geoMap!);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';

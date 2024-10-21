@@ -1,3 +1,58 @@
+private getSiteProximityLayer(
+  centerLatitude: number,
+  centerLongitude: number,
+  baseRadius: number, // This could be a default value
+  proximitySite: ISite[]
+): L.LayerGroup {
+  let siteProximityLayer: L.LayerGroup = new L.LayerGroup();
+  const siteIcon = this.getDivIcon(
+    'location_pin',
+    'circleIcon',
+    'purple',
+    '22px'
+  );
+
+  const currentZoom = this.geoMap?.getZoom() || this.INITIAL_ZOOM_LEVEL;
+  const adjustedRadius = this.calculateAdjustedRadius(baseRadius, currentZoom);
+
+  // Check if latitude and longitude are valid
+  for (let site of proximitySite) {
+    if (Utils.isLocationDataAvailable(site.latitude, site.longitude)) {
+      const storeMarker: L.Marker = L.marker(
+        L.latLng(site.latitude, site.longitude),
+        {
+          icon: siteIcon,
+        }
+      );
+      const tooltip = this.getZoneSiblingTooltip(site);
+      storeMarker.addTo(siteProximityLayer).bindTooltip(tooltip);
+    }
+  }
+
+  // Create a circle to mark the proximity boundary
+  let proximityCircle = L.circle([centerLatitude, centerLongitude], {
+    color: 'blue',
+    fillColor: 'blue',
+    fillOpacity: 0.1,
+    radius: adjustedRadius,
+  });
+
+  proximityCircle.addTo(siteProximityLayer);
+
+  return siteProximityLayer;
+}
+
+private calculateAdjustedRadius(baseRadius: number, zoomLevel: number): number {
+  // Example: Adjust the radius based on zoom level
+  const scaleFactor = Math.pow(2, zoomLevel - this.INITIAL_ZOOM_LEVEL);
+  return baseRadius * scaleFactor; // Adjust as needed
+}
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

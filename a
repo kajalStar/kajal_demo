@@ -1,0 +1,58 @@
+<div class="Site-details">
+  <div class="row">
+    <div class="col-md-6">
+      <app-property-grid
+        [hideDeleteButton]="true"
+        [hideCloseButton]="true"
+        [propertiesGroups]="siteInfoGroup"
+        [showToolbar]="false"
+      >
+      </app-property-grid>
+    </div>
+
+    <div class="col-md-6 m-0">
+      <div
+        id="map-container"
+        class="map-container"
+        leaflet
+        (leafletMapReady)="onMapReady($event)"
+        [leafletOptions]="mapOptions"
+        [(leafletCenter)]="storeZoneSiblingLocation"
+        [leafletLayers]="markerLayers"
+        [leafletLayersControl]="layersControl"
+      >
+
+      <!-- Dropdown for selecting proximity -->
+      <button class="recenter-btn1" mat-button [matMenuTriggerFor]="proximityMenu">
+        Select Proximity
+        <mat-icon>arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #proximityMenu="matMenu">
+        <button mat-menu-item (click)="setProximity(25)">25 mi</button>
+        <button mat-menu-item (click)="setProximity(50)">50 mi</button>
+        <button mat-menu-item (click)="setProximity(100)">100 mi</button>
+      </mat-menu>
+  
+        <button (click)="recenterMap()" class="recenter-btn">
+          <mat-icon matTooltip="Click here to recenter the map"
+            >my_location</mat-icon
+          >
+        </button>
+        <button class="fullscreen-btn" (click)="onToggleFullScreen()">
+          <mat-icon [matTooltip]="tooltipText">{{
+            isFullScreen ? "fullscreen_exit" : "fullscreen"
+          }}</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="col-md-12 mt-2 Site-content">
+  <app-property-grid-accordion
+    [siteData]="site"
+    [hideDeleteButton]="true"
+    [hideCloseButton]="true"
+    [propertiesGroups]="removeSiteInfoGroup"
+  >
+  </app-property-grid-accordion>
+</div>

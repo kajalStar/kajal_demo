@@ -1,3 +1,25 @@
+
+ <button mat-button [matMenuTriggerFor]="proximityMenu">
+      Select Proximity
+      <mat-icon>arrow_drop_down</mat-icon>
+    </button>
+    <mat-menu #proximityMenu="matMenu">
+      <button mat-menu-item (click)="setProximity(20)">20 mi</button>
+      <button mat-menu-item (click)="setProximity(25)">25 mi</button>
+      <button mat-menu-item (click)="setProximity(50)">50 mi</button>
+    </mat-menu>
+
+
+setProximity(proximity: number) {
+  this.selectedProximity = proximity;
+  this.onProximityChange(); // Call your function to handle the change
+}
+
+
+
+
+
+
 <!-- Dropdown for selecting proximity -->
     <mat-form-field appearance="fill" class="proximity-dropdown">
       <mat-label>Select Proximity</mat-label>

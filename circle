@@ -1,3 +1,23 @@
+<!-- Dropdown for selecting proximity -->
+    <mat-form-field appearance="fill" class="proximity-dropdown">
+      <mat-label>Select Proximity</mat-label>
+      <mat-select [(value)]="selectedProximity" (selectionChange)="onProximityChange()">
+        <mat-option value="20">20 mi</mat-option>
+        <mat-option value="25">25 mi</mat-option>
+        <mat-option value="50">50 mi</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+async onProximityChange(): Promise<void> {
+  this.PROXIMITY_SITES = this.selectedProximity * 1609.34; // Convert miles to meters
+  if (this.geoMap) {
+    await this.loadStoreDetails(this.site); // Reload the details with the new proximity
+  }
+}
+
+
+
+
 private getSiteProximityLayer(
   centerLatitude: number,
   centerLongitude: number,

@@ -1,3 +1,39 @@
+private getClosedSiteIcon(): L.DivIcon {
+  return this.getDivIcon('location_off', 'closedSiteIcon', 'red', '30px');
+}
+private addClosedSiteMarker(latitude: number, longitude: number): void {
+  const closedSiteIcon = this.getClosedSiteIcon();
+
+  const closedSiteMarker = L.marker(
+    L.latLng(latitude, longitude),
+    {
+      icon: closedSiteIcon,
+      zIndexOffset: 1000,
+    }
+  );
+
+  // Optionally, you can bind a tooltip with more information
+  closedSiteMarker.bindTooltip('Closed Site').openTooltip();
+
+  // Add the marker to the current location layer
+  this.currentLocationLayer.addLayer(closedSiteMarker);
+}
+
+if (site.isClosed) { // Assuming you have a way to determine if the site is closed
+  const closedSiteLatitude = site.latitude; // Replace with actual latitude
+  const closedSiteLongitude = site.longitude; // Replace with actual longitude
+  this.addClosedSiteMarker(closedSiteLatitude, closedSiteLongitude);
+}
+
+
+
+
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

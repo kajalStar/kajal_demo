@@ -1,3 +1,20 @@
+private async addCurrentLocationLayer(site: ISite) {
+  // Remove the existing zone sibling layer if it exists
+  if (this.currentZoneSiblingLayer) {
+    this.geoMap?.removeLayer(this.currentZoneSiblingLayer);
+  }
+
+  // Create a new layer for the zone siblings
+  this.currentZoneSiblingLayer = this.getZoneSiblingLayer(this.ZoneSiblings);
+
+  // Add the new layer to the map
+  if (this.currentZoneSiblingLayer) {
+    this.currentZoneSiblingLayer.addTo(this.geoMap!);
+  }
+}
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

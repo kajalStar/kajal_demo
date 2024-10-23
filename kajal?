@@ -1,3 +1,21 @@
+ else {
+    // Handling for closed site
+    if (Utils.isLocationDataAvailable(site.latitude, site.longitude)) {
+      // Create a marker for the closed site
+      const closedSiteIcon = this.getDivIcon('location_off', 'closedSiteIcon', 'red', '30px');
+      L.marker([site.latitude, site.longitude], { icon: closedSiteIcon })
+        .addTo(this.geoMap)
+        .bindTooltip(`Closed Site: ${site.site}`);
+    } else {
+      this.showTransientMessage('Closed site coordinates not available');
+    }
+  }
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   AfterViewInit,

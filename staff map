@@ -1,3 +1,21 @@
+private centerMapOnCurrentVan() {
+  const currentVan = this.getCurrentVanLocation();
+  if (currentVan && Utils.isLocationDataAvailable(currentVan.latitude, currentVan.longitude)) {
+    const currentVanLatLng = L.latLng(currentVan.latitude, currentVan.longitude);
+    this.geoMap?.setView(currentVanLatLng, this.INITIAL_ZOOM_LEVEL);
+  } else {
+    this.showTransientMessage('Current van location not available.');
+  }
+}
+
+private getCurrentVanLocation(): IVanLocation | undefined {
+  return this.vanInProximity.find(van => van.tech_id === this.staff.tech_id);
+}
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import {
   Component,

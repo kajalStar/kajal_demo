@@ -2,6 +2,111 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import {
   Component,
   ViewChild,
+  OnInit,
+  AfterViewInit,
+} from '@angular/core';
+import { MatSidenav } from '@angular/material/sidenav';
+import { Router } from '@angular/router';
+import { AppStateService } from './shared/services/app-state-service';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss']
+})
+export class AppComponent implements OnInit, AfterViewInit {
+  title = 'FTS Linq';
+
+  @ViewChild(MatSidenav)
+  sidenav!: MatSidenav;
+
+  isMobile: boolean = true;
+  isCollapsed: boolean = true;
+  isCompactMenu: boolean = false;
+
+  constructor(
+    private observer: BreakpointObserver,
+    private router: Router,
+    private appStateService: AppStateService
+  ) { }
+
+  ngOnInit() {
+    this.observer.observe(['(max-width: 800px)']).subscribe((screenSize) => {
+      this.isMobile = screenSize.matches;
+    });
+  }
+
+  ngAfterViewInit() {
+    // Ensure sidenav is initialized
+    if (this.sidenav) {
+      this.sidenav.openedChange.subscribe(() => {
+        // Handle any additional logic when sidenav state changes
+      });
+    }
+  }
+
+  toggleMenu() {
+    if (this.isMobile) {
+      this.sidenav.toggle();
+      this.isCollapsed = false;
+    } else {
+      this.sidenav.open();
+      this.isCollapsed = !this.isCollapsed;
+    }
+  }
+
+  onMenuItemClicked(menuItem: { route: string }) {
+    this.sidenav.close();
+    this.isCollapsed = true;
+    this.router.navigateByUrl(menuItem.route);
+  }
+
+  public isUserLoggedIn(): boolean {
+    return this.appStateService.isUserLoggedIn();
+  }
+
+  // Add a method to handle user login
+  login() {
+    this.appStateService.login(); // Call your login method here
+    // Additional logic (if needed)
+  }
+
+  // Add a method to handle user logout
+  logout() {
+    this.appStateService.logout(); // Call your logout method here
+    // Additional logic (if needed)
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { BreakpointObserver } from '@angular/cdk/layout';
+import {
+  Component,
+  ViewChild,
 } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
 import { IMenu } from './shared/models/menu';

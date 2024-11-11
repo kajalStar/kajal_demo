@@ -1,5 +1,73 @@
 
 
+private getVansProximityToolTip(van: IVanLocation): string {
+  // Get the van's latitude and longitude
+  const vanLocation = L.latLng(van.latitude, van.longitude);
+  
+  // Get the current site location (this.site latitude and longitude)
+  const siteLocation = L.latLng(this.site.latitude, this.site.longitude);
+
+  // Calculate the distance from the site to the van in meters
+  const distanceInMeters = siteLocation.distanceTo(vanLocation);
+  
+  // Convert distance to kilometers (optional)
+  const distanceInKm = (distanceInMeters / 1000).toFixed(2); // Rounded to 2 decimal places
+  // Or you could convert it to miles
+  const distanceInMiles = (distanceInMeters / 1609.34).toFixed(2); // 1609.34 meters = 1 mile
+
+  // Create the tooltip content with the distance
+  let vehicle_status = van.vehicle_status ?? '-';
+  let vanNumber = van.van_number ?? '-';
+  let zone = van.zone ?? '-';
+  let team = van.team ?? '-';
+  let contactName = van.contact_name ?? '-';
+  let tech_id = van.tech_id ?? '-';
+  let is_Driving = new YesNoPipe().transform(van.is_driving ?? false);
+  let location_update_at = this.formatDate(van.last_known_at, this.uiDateFormate);
+
+  let popupContent: string = `<table>
+<tr>
+<td>Van Number</td><td>:</td><td>${vanNumber}</td>
+</tr>
+<tr>
+<td>Vehicle Status</td><td>:</td><td>${vehicle_status}</td>
+</tr>
+<tr>
+<td>Zone</td><td>:</td><td>${zone}</td>
+</tr>
+<tr>
+<td>Team</td><td>:</td><td>${team}</td>
+</tr>
+<tr>
+<td>Technician Name</td><td>:</td><td>${contactName}</td>
+</tr>  
+<tr>
+<td>Technician Id</td><td>:</td><td>${tech_id}</td>
+</tr>
+<tr>
+<td>Is Driving</td><td>:</td><td>${is_Driving}</td>
+</tr>
+<tr>
+<td>Location Update At</td><td>:</td><td>${location_update_at}</td>
+</tr>
+<tr>
+<td>Distance from Site</td><td>:</td><td>${distanceInKm} km (${distanceInMiles} miles)</td>
+</tr>
+</table>`;
+
+  return popupContent;
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 

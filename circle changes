@@ -1,3 +1,111 @@
+
+
+
+
+
+async onProximityChange(): Promise<void> {
+  // Convert miles to meters (1 mile = 1609.34 meters)
+  this.PROXIMITY_SITES = this.selectedProximity * 1609.34;
+
+  // Check if the proximity is zero
+  if (this.selectedProximity === 0) {
+    // Remove the proximity circle layer if it exists
+    if (this.proximityCircleLayer) {
+      this.geoMap?.removeLayer(this.proximityCircleLayer);
+      this.proximityCircleLayer = undefined;
+    }
+  } else {
+    // Check if the proximity layer already exists
+    if (this.proximityCircleLayer) {
+      // Update the radius of the existing circle without making an API call
+      this.proximityCircleLayer.setRadius(this.PROXIMITY_SITES);
+    } else {
+      // Create a new proximity circle layer if it doesn't exist
+      if (this.geoMap) {
+        this.proximityCircleLayer = L.circle(
+          [this.site.latitude, this.site.longitude],
+          {
+            radius: this.PROXIMITY_SITES,
+            color: 'blue',
+            fillColor: '#30f',
+            fillOpacity: 0.2,
+          }
+        ).addTo(this.geoMap);
+      }
+    }
+
+    // Reload vans in proximity based on the updated radius
+    await this.loadVansInProximity();
+  }
+}
+
+
+
+
+
+
+
+private async loadVansInProximity(): Promise<void> {
+  // Fetch the vans in the new proximity
+  this.vanInProximity = await this.vanLocationService.getVansInProximity(
+    this.site.latitude,
+    this.site.longitude,
+    this.PROXIMITY_SITES
+  );
+
+  // Clear existing markers for vans in proximity
+  if (this.clearVanMarker) {
+    this.geoMap?.removeLayer(this.clearVanMarker);
+  }
+
+  // Add new markers for vans in proximity
+  const vanProximityLayer = await this.getVanProximityLayer(
+    this.site.latitude,
+    this.site.longitude,
+    this.PROXIMITY_SITES,
+    this.vanInProximity
+  );
+
+  // Update the marker layers on the map
+  this.clearVanMarker.addLayer(vanProximityLayer);
+  vanProximityLayer.addTo(this.geoMap!);
+}
+
+
+
+
+
+<div class="proximity-selection">
+  <label for="proximity">Proximity:</label>
+  <select [(ngModel)]="selectedProximity" (ngModelChange)="onProximityChange()">
+    <option value="25">25 miles</option>
+    <option value="50">50 miles</option>
+    <option value="100">100 miles</option>
+  </select>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';

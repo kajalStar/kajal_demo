@@ -1,3 +1,53 @@
+private getVanProximityLayer(
+  centerLatitude: number,
+  centerLongitude: number,
+  radius: number,
+  proximityInVan: IVanLocation[]
+): L.LayerGroup {
+  let vanProximityLayer: L.LayerGroup = new L.LayerGroup();
+  
+  // Remove any previous proximity layers
+  this.clearVanMarker.removeLayer(vanProximityLayer);
+
+  // Create a circle to represent the proximity boundary
+  let proximityCircle = L.circle([centerLatitude, centerLongitude], {
+    opacity: 0.5,
+    color: 'blue',
+    fillColor: 'blue',
+    fillOpacity: 0.1,
+    radius: radius, // Ensure this is the correct distance in meters
+  });
+
+  proximityCircle.addTo(vanProximityLayer);
+
+  // Now add markers for the vans within the proximity
+  const vanProximityIcon = this.getDivIcon(
+    'airport_shuttle',
+    'vanProximityIcon',
+    'darkgreen',
+    '22px'
+  );
+
+  for (let van of proximityInVan) {
+    if (Utils.isLocationDataAvailable(van.latitude, van.longitude)) {
+      const storeMarker: L.Marker = L.marker(
+        L.latLng(van.latitude, van.longitude),
+        { icon: vanProximityIcon, zIndexOffset: 200 }
+      );
+
+      // Bind tooltip or popup
+      const tooltip = this.getVansProximityToolTip(van);
+      storeMarker.addTo(vanProximityLayer).bindTooltip(tooltip);
+    }
+  }
+
+  // Add the layer to the map
+  return vanProximityLayer;
+}
+
+
+
+
 
 
 private getVansProximityToolTip(van: IVanLocation): string {

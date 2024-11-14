@@ -1,3 +1,47 @@
+async onProximityChange(): Promise<void> {
+  // Convert miles to meters
+  this.PROXIMITY_RADIUS = this.selectedProximity * 1609.34;
+
+  // Clear the previous circle if it exists
+  if (this.proximityCircleLayer) {
+    this.geoMap?.removeLayer(this.proximityCircleLayer);
+  }
+
+  if (this.geoMap && this.van.latitude && this.van.longitude) {
+    // Add the proximity circle with the updated radius
+    this.addProximityCircle(this.van.latitude, this.van.longitude);
+    
+    // Reload the details with the new proximity
+    await this.loadVanDetails(this.van, this.selectedProximity);
+  }
+}
+
+
+private addProximityCircle(latitude: number, longitude: number) {
+  if (this.geoMap) {
+    // Create a circle to mark the proximity boundary
+    this.proximityCircleLayer = L.circle([latitude, longitude], {
+      opacity: 0.5,
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 0.1,
+      radius: this.PROXIMITY_RADIUS, // Radius in meters (e.g., 25 miles)
+    });
+
+    // Add the circle to the map
+    this.proximityCircleLayer.addTo(this.geoMap);
+  }
+}
+
+
+
+
+
+
+
+
+
+
 import { Overlay } from '@angular/cdk/overlay';
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';

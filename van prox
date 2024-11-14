@@ -1,0 +1,736 @@
+import { Overlay } from '@angular/cdk/overlay';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Router } from '@angular/router';
+import { LeafletControlLayersConfig } from '@bluehalo/ngx-leaflet';
+import * as L from 'leaflet';
+import { NGXLogger } from 'ngx-logger';
+import { ISite } from 'src/app/resources/site';
+import { IStaff } from 'src/app/resources/staff';
+import { IVan, VanHelper } from 'src/app/resources/van';
+import { IVanLocation } from 'src/app/resources/van-location';
+import { SiteService } from 'src/app/services/site.service';
+import { StaffService } from 'src/app/services/staff.service';
+import { VanLocationService } from 'src/app/services/van-location.service';
+import { VanService } from 'src/app/services/van.service';
+import { BaseListPageComponent } from 'src/app/shared/components/base-list-page/base-list-page.component';
+import { YesNoPipe } from 'src/app/shared/pipes/yes-no.pipe';
+import { IPropertyInfoGroup } from 'src/app/shared/resources/property-info';
+import { Utils } from 'src/app/shared/utils/utils';
+import { environment } from 'src/assets/environment/environment ';
+import { IVanSearchFilter } from 'src/app/resources/van-search-filter';
+import { VanEditorComponent } from '../van-editor/van-editor.component';
+
+@Component({
+  selector: 'app-van-details',
+  templateUrl: './van-details.component.html',
+  styleUrls: ['./van-details.component.scss'],
+})
+export class VanDetailsComponent
+  extends BaseListPageComponent<IVan>
+  implements OnChanges {
+  readonly PERM_StORES_LAYER: string = 'Permanent Stores';
+  readonly HOME_LAYER: string = 'Home Location';
+  readonly VAN_IN_PROXIMITY: string = 'Vans In Proximity';
+  readonly SITES_IN_PROXIMITY: string = 'Sites in Proximity';
+  readonly ZONE_SIBLING: string = 'Zone Siblings';
+
+  readonly INITIAL_ZOOM_LEVEL: number = 8;
+  readonly INITIAL_MAP_CENTER: L.LatLng = L.latLng(36.417896, -82.991972); // dummy location;
+  readonly MAX_ZOOM_LEVEL: number = 50;
+
+  readonly OSM_ATTRIBUTION: string =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  @Input() van: IVan = <IVan>{};
+  @Input() staff: IStaff = <IStaff>{};
+  baseStore: IVan | undefined;
+  ZoneSiblings: ISite[] = [];
+  private currentLocationLayer: L.LayerGroup = new L.LayerGroup();
+  staffTechId: string = '';
+  permanentStores: IVan[] = [];
+  PROXIMITY_RADIUS = 25 * 1609.34;
+  selectedProximity: number = 25;
+  private proximityCircleLayer?: L.Circle;
+  vanInProximity: IVanLocation[] = [];
+  sitesInProximity: ISite[] = [];
+  staffHomeData: IStaff[] = [];
+  isFullScreen: boolean = false;
+  tooltipText = 'Click here to view map in fullScreen';
+
+  // initial map parameters
+  geoMap?: L.Map;
+  mapZoomLevel: number = this.INITIAL_ZOOM_LEVEL;
+  mapOptions: L.MapOptions = this.createMapOptions();
+
+  vanPropertyGroups: IPropertyInfoGroup[] = [];
+  removeGroup: IPropertyInfoGroup[] = [];
+
+  // staff map information
+  vanCentreLocation: L.LatLng = this.INITIAL_MAP_CENTER;
+  markerLayers: L.LayerGroup[] = [];
+  uiDateTimeFormate = environment.uiDateTimeFormate;
+  previousSelectedValues: { [key: string]: string } = {};
+
+  /**
+   * Contains collection of overlay layer that could be optionally shown / hidden by the user.
+   */
+  layersControl: LeafletControlLayersConfig = new LeafletControlLayersConfig();
+
+  /**
+   * Constructor
+   * @param staffService
+   */
+  constructor(
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    public dialog: MatDialog,
+    private vanService: VanService,
+    private vanLocationService: VanLocationService,
+    private siteService: SiteService,
+    private staffService: StaffService
+  ) {
+    super(logger, router, activatedRoute, snackBar, overlay, vanService);
+  }
+
+  async ngOnChanges(_changes: SimpleChanges): Promise<void> {
+    // show staff related details if the map is already visible
+    await this.loadVanDetails(this.van);
+    //added van current location layer
+    this.addCurrentLocationLayer();
+  }
+
+  /**
+   * Leaflet notification to indicates that the map  is now ready for
+   * information display.
+   *
+   * @param map
+   */
+  async onMapReady(map: L.Map) {
+    this.geoMap = map;
+    this.subscribeMapEvents();
+    // Add the scale control
+    L.control.scale().addTo(this.geoMap);
+    console.log('Map is ready');
+    if (!Utils.isNullOrUndefined(this.van)) {
+      await this.loadVanDetails(this.van);
+    }
+  }
+
+  /**
+   * Subscribe to relevant leaflet map events.
+   */
+  private subscribeMapEvents() {
+    // hook overlay add notification. This will be called
+    // by leaflet when user opts to show an overlay layer.
+    this.geoMap?.on('overlayadd', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      // persist the layer visibility state for later use.
+      localStorage.setItem(layerName, '1');
+    });
+
+    // hook overlay remove notification. This will be called
+    // by leaflet when user opts to hide an overlay layer.
+    this.geoMap?.on('overlayremove', (event: L.LeafletEvent) => {
+      // hack - event class is not exposing name property
+      let tEvent: any = event;
+      let layerName = tEvent['name'];
+      // persist the layer visibility state for later use.
+      localStorage.removeItem(layerName);
+    });
+  }
+
+  // Toggles fullscreen mode for updates the map
+  onToggleFullScreen() {
+    const mapContainer = document.getElementById('map-container');
+    if (mapContainer) {
+      // Check if mapContainer is not null
+      if (!this.isFullScreen) {
+        if (mapContainer.requestFullscreen) {
+          mapContainer.requestFullscreen();
+        }
+        this.isFullScreen = true;
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+        this.isFullScreen = false;
+      }
+      this.updateTooltip();
+      this.geoMap?.invalidateSize();
+    }
+  }
+  updateTooltip() {
+    this.tooltipText = this.isFullScreen
+      ? 'Click here to exit map in fullScreen'
+      : 'Click here to view map in fullScreen';
+    console.log(this.tooltipText);
+  }
+  recenterMap(): void {
+    let baseStoreCoordinates: L.LatLng | null = null;
+    for (let site of this.vanInProximity) {
+      if (site.vehicle_number == this.van?.vehicle_number) {
+        baseStoreCoordinates = L.latLng(site.latitude, site.longitude);
+        break;
+      }
+    }
+
+    // If base store coordinates are found, set the view to those coordinates
+    if (baseStoreCoordinates) {
+      this.geoMap?.setView(baseStoreCoordinates, this.INITIAL_ZOOM_LEVEL);
+    } else {
+      this.showTransientMessage('Base store coordinates not found');
+    }
+  }
+
+  /**
+   * Gets the display status of specified overlay layer.
+   * @param layerName
+   * @returns
+   */
+  private isOverlayLayerVisible(layerName: string): boolean {
+    let value: string = localStorage.getItem(layerName) ?? '1';
+    return parseInt(value) > 0;
+  }
+
+  /**
+   * Helper method to prepare the map options.
+   */
+  private createMapOptions(): L.MapOptions {
+    let mapOptions: L.MapOptions = {
+      zoom: this.mapZoomLevel,
+      layers: [
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: this.MAX_ZOOM_LEVEL,
+          attribution: this.OSM_ATTRIBUTION,
+        }),
+      ],
+      center: L.latLng(37.0902, 95.7129), // dummy location , centre of USA
+    };
+    return mapOptions;
+  }
+
+  async onProximityChange(): Promise<void> {
+    // Convert miles to meters
+    this.PROXIMITY_RADIUS = this.selectedProximity * 1609.34;
+    // Clear the previous circle if it exists
+    if (this.proximityCircleLayer) {
+      this.geoMap?.removeLayer(this.proximityCircleLayer);
+    }
+    if (this.geoMap) {
+      // Reload the details with the new proximity
+      await this.loadVanDetails(this.van, this.selectedProximity);
+    }
+  }
+
+  /**
+   * set proximity
+   * @param proximity
+   */
+  setProximity(proximity: number) {
+    this.selectedProximity = proximity;
+    this.onProximityChange();
+  }
+
+  /**
+   * Loads the details of the specified staff and creates corresponding map
+   * overlays.
+   * @param van
+   */
+  async loadVanDetails(van: IVan, prox: number = 25) {
+    try {
+      this.van = van;
+      this.staffTechId = van.tech_id;
+      this.vanPropertyGroups = VanHelper.getPropertyGroups(van);
+      this.removeGroup = this.vanPropertyGroups.filter(
+        (x) =>
+          x.name !== 'Summary' &&
+          x.name !== 'Contact' &&
+          x.name !== 'Manufacturer' &&
+          x.name !== 'Misc.'
+      );
+      let staffData = this.staffService.findItems(0, 0);
+      let data = (await staffData).items;
+      this.staffHomeData = data.filter(
+        (x) => x.home_latitude && x.home_longitude
+      );
+      // Check if van's latitude and longitude are null
+      if (
+        Utils.isNullOrUndefined(van.latitude) ||
+        Utils.isNullOrUndefined(van.longitude)
+      ) {
+        // Set the map center to the staff's home location
+        await this.addHomeMarker();
+        this.vanCentreLocation = L.latLng(
+          this.staff.home_latitude,
+          this.staff.home_longitude
+        );
+        if (!Utils.isNullOrUndefined(van.zone)) {
+          this.ZoneSiblings = await this.siteService.getZoneSibling(van.zone);
+        }
+      } else {
+        // fetch the van in proximity
+
+        this.vanInProximity = await this.vanLocationService.getVansInProximity(
+          van.latitude,
+          van.longitude,
+          this.selectedProximity
+        );
+        // get center the site
+        if (!Utils.isNullOrUndefined(this.vanInProximity)) {
+          let tmpStore: IVan = <IVan>this.van;
+          this.vanCentreLocation = L.latLng(
+            tmpStore.latitude,
+            tmpStore.longitude
+          );
+        }
+
+        this.sitesInProximity = await this.siteService.getSitesInProximity(
+          van.latitude,
+          van.longitude,
+          this.selectedProximity
+        );
+        await this.addMarkerOverlayLayers(van);
+      }
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    }
+  }
+  /**
+   * add current location layer
+   */
+  private async addCurrentLocationLayer() {
+    const currentLocationLayer = this.getCurrentLocationLayer(
+      this.vanInProximity
+    );
+    if (currentLocationLayer) {
+      currentLocationLayer.addTo(this.geoMap!);
+    }
+  }
+
+  /**
+   * Helper method to add marker overlay layers.
+   * @param van
+   */
+  private async addMarkerOverlayLayers(van: IVan) {
+    let bShowLayer: boolean = true;
+    let layerGroups: L.LayerGroup[] = [];
+
+    //prepare van proximity layer
+    let proximityVanLayer: L.LayerGroup = await this.getVanProximityLayer(
+      van.latitude,
+      van.longitude,
+      this.PROXIMITY_RADIUS,
+      this.vanInProximity
+    );
+    bShowLayer = this.isOverlayLayerVisible(this.VAN_IN_PROXIMITY);
+    if (bShowLayer) {
+      layerGroups.push(proximityVanLayer);
+    }
+    //prepare site in proximity layer
+    let proximityLayer: L.LayerGroup = this.getSiteProximityLayer(
+      van.latitude,
+      van.longitude,
+      this.PROXIMITY_RADIUS,
+      this.sitesInProximity
+    );
+    bShowLayer = this.isOverlayLayerVisible(this.SITES_IN_PROXIMITY);
+    if (bShowLayer) {
+      layerGroups.push(proximityLayer);
+    }
+
+    let layersControl: LeafletControlLayersConfig = {
+      baseLayers: {},
+      overlays: {
+        [this.SITES_IN_PROXIMITY]: proximityLayer,
+        [this.VAN_IN_PROXIMITY]: proximityVanLayer,
+      },
+    };
+
+    this.markerLayers = layerGroups;
+    this.layersControl = layersControl;
+  }
+
+  /**
+   * Helper method to add marker overlay layers.
+   * @param staff
+   */
+  private async addHomeMarker() {
+    let bShowLayer: boolean = true;
+    let layerGroups: L.LayerGroup[] = [];
+
+    // Create a new layer group for home location
+    let homeLayer: L.LayerGroup = new L.LayerGroup();
+    // Find the staff member with the matching emp_id
+    const matchingStaff = this.staffHomeData.find(
+      (staffMember) => staffMember.emp_id === this.van.emp_id
+    );
+
+    if (
+      matchingStaff &&
+      Utils.isLocationDataAvailable(
+        matchingStaff.home_latitude,
+        matchingStaff.home_longitude
+      )
+    ) {
+      const homeIcon = this.getDivIcon('home', 'staffHomeIcon', 'Blue');
+      const homeMarker: L.Marker = L.marker(
+        L.latLng(matchingStaff.home_latitude, matchingStaff.home_longitude),
+        {
+          icon: homeIcon,
+        }
+      );
+      let tooltip = this.getHomeLocationTooltip(matchingStaff);
+      homeMarker.addTo(homeLayer).bindTooltip(tooltip);
+    }
+
+    bShowLayer = this.isOverlayLayerVisible(this.HOME_LAYER);
+    if (bShowLayer) {
+      layerGroups.push(homeLayer);
+    }
+    //prepare zone layer
+    let zoneSiblingLayer: L.LayerGroup = await this.getZoneSiblingLayer(
+      this.ZoneSiblings
+    );
+
+    bShowLayer = this.isOverlayLayerVisible(this.ZONE_SIBLING);
+    if (bShowLayer) {
+      layerGroups.push(zoneSiblingLayer);
+    }
+
+    let layersControl: LeafletControlLayersConfig = {
+      baseLayers: {},
+      overlays: {
+        [this.HOME_LAYER]: homeLayer,
+        [this.ZONE_SIBLING]: zoneSiblingLayer,
+      },
+    };
+
+    this.markerLayers = layerGroups;
+    this.layersControl = layersControl;
+  }
+
+  /**
+   * get the van in proximity
+   * @param centerLatitude
+   * @param centerLongitude
+   * @param radius
+   * @param proximityInVan
+   * @returns
+   */
+  private getVanProximityLayer(
+    centerLatitude: number,
+    centerLongitude: number,
+    radius: number,
+    proximityInVan: IVanLocation[]
+  ): L.LayerGroup {
+    let vanProximityLayer: L.LayerGroup = new L.LayerGroup();
+
+    const vanProximityIcon = this.getDivIcon(
+      'airport_shuttle',
+      'vanProximityIcon',
+      'darkgreen',
+      '22px',
+      0.6
+    );
+
+    for (let van of proximityInVan) {
+      let icon = vanProximityIcon;
+      // Check if latitude and longitude are valid
+      if (Utils.isLocationDataAvailable(van.latitude, van.longitude)) {
+        icon = vanProximityIcon;
+
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(van.latitude, van.longitude),
+          {
+            icon: icon,
+            zIndexOffset: 200,
+          }
+        );
+        const tooltip = this.getVansProximityToolTip(van);
+        storeMarker.addTo(vanProximityLayer).bindTooltip(tooltip);
+      }
+    }
+    // Create a circle to mark the proximity boundary
+    let proximityCircle = L.circle([centerLatitude, centerLongitude], {
+      opacity: 0.5,
+      color: 'blue',
+      fillColor: 'blue',
+      fillOpacity: 0.1,
+      radius: radius,
+    });
+    proximityCircle.addTo(vanProximityLayer);
+    return vanProximityLayer;
+  }
+
+  private getCurrentLocationLayer(van: IVanLocation[]): L.LayerGroup {
+    let vanLayer: L.LayerGroup = new L.LayerGroup();
+
+    // Clear the currentLocationLayer before adding new markers
+    this.currentLocationLayer.clearLayers();
+    for (let item of van)
+      if (Utils.isLocationDataAvailable(item.latitude, item.longitude)) {
+        if (item.latitude == this.van.latitude) {
+          const homeIcon = this.getDivIcon(
+            'airport_shuttle',
+            'airportShuttleIcon',
+            'crimson',
+            '26px',
+            0.8
+          );
+
+          if (Utils.isLocationDataAvailable(item.latitude, item.longitude)) {
+            const storeMarker: L.Marker = L.marker(
+              L.latLng(item.latitude, item.longitude),
+              {
+                icon: homeIcon,
+                zIndexOffset: 300,
+              }
+            );
+            let tooltip = this.getVansProximityToolTip(item);
+            storeMarker.addTo(vanLayer).bindTooltip(tooltip);
+          }
+        }
+      }
+    // Add  to currentLocationLayer
+    vanLayer.addTo(this.currentLocationLayer);
+    return this.currentLocationLayer;
+  }
+
+  /**
+   * Create a layer marker for site proximity
+   * @param site
+   * @returns
+   */
+
+  private getSiteProximityLayer(
+    centerLatitude: number,
+    centerLongitude: number,
+    radius: number,
+    proximitySite: ISite[]
+  ): L.LayerGroup {
+    let siteProximityLayer: L.LayerGroup = new L.LayerGroup();
+    const siteIcon = this.getDivIcon(
+      'location_pin',
+      'circleIcon',
+      'purple',
+      '22px'
+    );
+
+    // Check if latitude and longitude are valid
+    for (let site of proximitySite) {
+      let icon = siteIcon;
+      icon = siteIcon;
+      if (Utils.isLocationDataAvailable(site.latitude, site.longitude)) {
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(site.latitude, site.longitude),
+          {
+            icon: icon,
+          }
+        );
+        const tooltip = this.getZoneSiblingTooltip(site);
+        storeMarker.addTo(siteProximityLayer).bindTooltip(tooltip);
+      }
+    }
+    // create a circle to mark the proximity boundary
+    let proximityCircle = L.circle([centerLatitude, centerLongitude], {
+      opacity: 0.5,
+      color: 'blue',
+      fillColor: 'blue',
+      radius: radius,
+    });
+    proximityCircle.addTo(siteProximityLayer);
+    return siteProximityLayer;
+  }
+
+  /**
+   * Create a layerGroup marker for zone sibling
+   * @param zoneSibling
+   * @returns
+   */
+  private getZoneSiblingLayer(zoneSiblings: ISite[]): L.LayerGroup {
+    let zoneLayer: L.LayerGroup = new L.LayerGroup();
+    // Define different icons for zone and zone Sibling
+    const siblingStoreIcon = this.getDivIcon(
+      'location_pin',
+      'siblingStoreIcon',
+      'dimGray',
+      '22px'
+    );
+    for (let site of zoneSiblings) {
+      // Check if site is base site or zoneSibling
+      let icon = siblingStoreIcon;
+      icon = siblingStoreIcon;
+      if (Utils.isLocationDataAvailable(site.latitude, site.longitude)) {
+        const storeMarker: L.Marker = L.marker(
+          L.latLng(site.latitude, site.longitude),
+          {
+            icon: icon,
+          }
+        );
+        const tooltip = this.getZoneSiblingTooltip(site);
+        storeMarker.addTo(zoneLayer).bindTooltip(tooltip);
+      }
+    }
+    return zoneLayer;
+  }
+
+  /**
+   * Get then tooltip for specified zone sibling
+   * @param sites
+   * @returns
+   */
+  getZoneSiblingTooltip(sites: ISite) {
+    // Get the van's latitude and longitude
+    const vanLocation = L.latLng(this.van.latitude, this.van.longitude);
+    // Get the current site location (this.site latitude and longitude)
+    const siteLocation = L.latLng(sites.latitude, sites.longitude);
+    // Calculate the distance from the site to the van in meters
+    const distanceInMeters = siteLocation.distanceTo(vanLocation);
+    // Or you could convert it to miles
+    const distanceInMiles = (distanceInMeters / 1609.34).toFixed(2); // 1609.34 meters = 1 mile
+    let zone = sites.zone ?? '-';
+    let team = sites.team ?? '-';
+    let facilityType = sites.facility_type ?? '-';
+    let city = sites.city ?? '-';
+    let state = sites.state ?? '-';
+    let fsMgr = sites.fs_mgr ?? '-';
+    let storeType = sites.store_type;
+    let site = sites.site ?? '-';
+    let popupContent: string = `<table>
+    <tr>
+    <td><b>Site</b></td><td>:</td><td><b>${site}</b></td>
+    </tr>
+     <tr>
+      <td>Zone/Team</td><td>:</td><td>${zone} / ${team}</td>
+    </tr>
+       <tr>
+         <td>City, State</td><td>:</td><td>${city} (${state})</td>
+    </tr>   
+     <tr>
+         <td>Facility Type</td><td>:</td><td>${facilityType}</td>
+    </tr>
+    <tr>
+         <td>Site Type</td><td>:</td><td>${storeType}</td>
+   </tr>
+   <tr>
+   <td>Front Store Manager</td><td>:</td><td>${fsMgr}</td>
+   </tr>
+
+   <tr>
+   <td>GPS Distance From Van</td><td>:</td><td>${distanceInMiles} miles</td>
+   </tr>
+  
+  </table>`;
+    return popupContent;
+  }
+
+  /**
+   * Gets the tooltip content  for van in  specified radius
+   * @param van
+   * @returns
+   */
+  private getVansProximityToolTip(van: IVanLocation) {
+    let vehicle_status = van.vehicle_status ?? '-';
+    let vanNumber = van.van_number ?? '-';
+    let zone = van.zone ?? '-';
+    let team = van.team ?? '-';
+    let contactName = van.contact_name ?? '-';
+    let tech_id = van.tech_id ?? '-';
+    let is_Driving = new YesNoPipe().transform(van.is_driving ?? false);
+    let location_update_at = this.formatDate(
+      van.last_known_at,
+      this.uiDateTimeFormate
+    );
+
+    let popupContent: string = `<table>
+<tr>
+<td><b>Van Number</b></td><td>:</td><td><b>${vanNumber} (${vehicle_status})</b></td>
+</tr>
+<tr>
+<td>Zone/Team</td><td>:</td><td>${zone} / ${team}</td>
+</tr>
+<tr>
+<td>Technician</td><td>:</td><td>${contactName} (${tech_id})</td>
+</tr>  
+<tr>
+<td>Is Driving</td><td>:</td><td>${is_Driving}</td>
+</tr>
+<tr>
+<td>Location Update At</td><td>:</td><td>${location_update_at}</td>
+</tr>
+</table>`;
+    return popupContent;
+  }
+
+  /**
+   * Formats a given date according to the specified format.
+   *
+   * @param {Date} date - The date to format.
+   * @param {string} format - The format string (e.g., 'MM/DD/YYYY').
+   * @returns {string} - The formatted date string.
+   * */
+
+  private formatDate(date: Date, format: string): string {
+    const options: Intl.DateTimeFormatOptions = {};
+    if (format.includes('MM')) options.month = '2-digit';
+    if (format.includes('DD')) options.day = '2-digit';
+    if (format.includes('YYYY')) options.year = 'numeric';
+    if (format.includes('HH')) {
+      options.hour = '2-digit';
+      options.hour12 = false; // Use 24-hour format
+    }
+    if (format.includes('mm')) options.minute = '2-digit';
+    if (format.includes('ss')) options.second = '2-digit';
+    return new Date(date).toLocaleString(undefined, options);
+  }
+  /**
+   * Gets the tooltip content for base store marker.
+   * @param staff
+   * @returns
+   */
+  private getHomeLocationTooltip(staff: IStaff) {
+    let baseStore: string = staff.base_site ?? '-';
+    let manager: string = staff.manager ?? '-';
+    let cvsMobile: string = staff.cvs_mobile ?? '-';
+    let popupContent: string = `<table>   
+   
+  </table>`;
+    return popupContent;
+  }
+
+  /**
+   * Gets html for specified icon
+   * @param iconName
+   * @param className
+   * @param iconColor
+   * @returns
+   */
+  private getDivIcon(
+    iconName: string,
+    className: string,
+    iconColor: string,
+    iconSizePx: string = '30px',
+    opacity: number = 0.5
+  ): L.DivIcon {
+    let iconHtml: string = `
+      <i class="material-icons ${className}" 
+      style="
+        color: ${iconColor};
+        font-size: ${iconSizePx};
+        opacity: ${opacity};  
+        -webkit-text-stroke-color: black;" 
+        >${iconName}</i>
+      `;
+    let iconOptions = <L.DivIconOptions>{
+      html: iconHtml,
+      className: className,
+      iconAnchor: [10, 20],
+    };
+    return L.divIcon(iconOptions);
+  }
+}

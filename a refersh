@@ -1,0 +1,112 @@
+import {
+  HttpErrorResponse,
+  HttpEvent,
+  HttpHandler,
+  HttpInterceptor,
+  HttpRequest,
+} from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { catchError, Observable, of, switchMap, throwError } from 'rxjs';
+import { AppStateService } from './app-state-service';
+import { Router } from '@angular/router';
+import { AuthService } from './auth.service'; // Ensure you have a service to handle token refresh
+
+@Injectable()
+export class JwtInterceptor implements HttpInterceptor {
+  constructor(
+    private appStateService: AppStateService,
+    private router: Router,
+    private authService: AuthService // Inject your AuthService
+  ) {}
+
+  intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    const user = this.appStateService.getCurrentUser();
+    const token = this.appStateService.getAuthToken();
+    const refreshToken = this.appStateService.getRefreshToken();
+    const isLoggedIn = user != null && token != null;
+
+    // Add the token to the request if logged in
+    if (isLoggedIn) {
+      request = request.clone({
+        setHeaders: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+
+    // Proceed with the HTTP request
+    return next.handle(request).pipe(
+      catchError((error: HttpErrorResponse) => {
+        // Handle token expiration or invalid token errors
+        if (error.status === 401 || error.status === 403) {
+          // Check if the token is expired and attempt to refresh it
+          if (this.isTokenExpiringSoon(token)) {
+            return this.refreshToken(refreshToken, request, next);
+          } else {
+            // If refresh failed or no refresh token, clear user data and navigate to login
+            this.appStateService.clearUserData();
+            this.router.navigate(['/login']);
+            return throwError(error);
+          }
+        }
+
+        // Re-throw other errors for further handling
+        return throwError(error);
+      })
+    );
+  }
+
+  // Check if the token is expiring soon (within 2 minutes)
+  private isTokenExpiringSoon(token: string): boolean {
+    const decodedToken = this.decodeToken(token);
+    if (decodedToken && decodedToken.exp) {
+      const expiryTime = decodedToken.exp * 1000; // Convert exp from seconds to milliseconds
+      const currentTime = Date.now();
+      const bufferTime = 2 * 60 * 1000; // 2 minutes in milliseconds
+      return currentTime >= expiryTime - bufferTime;
+    }
+    return false;
+  }
+
+  // Decode the JWT token to read the expiry date
+  private decodeToken(token: string): any {
+    try {
+      const payload = token.split('.')[1];
+      const decodedPayload = atob(payload); // Decode the base64-encoded part
+      return JSON.parse(decodedPayload); // Return the decoded object
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Function to handle token refresh
+  private refreshToken(refreshToken: string, request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    return this.authService.refreshAccessToken(refreshToken).pipe(
+      switchMap((newTokens: any) => {
+        // Store the new tokens
+        this.appStateService.setTokens(newTokens);
+
+        // Clone the original request with the new access token
+        const clonedRequest = request.clone({
+          setHeaders: {
+            Authorization: `Bearer ${newTokens.jwt_token}`,
+          },
+        });
+
+        // Retry the original request with the new access token
+        return next.handle(clonedRequest);
+      }),
+      catchError((refreshError) => {
+        // If refresh failed, clear user data and navigate to login
+        this.appStateService.clearUserData();
+        this.router.navigate(['/login']);
+        return throwError(refreshError);
+      })
+    );
+  }
+}
+
+
+
+
+

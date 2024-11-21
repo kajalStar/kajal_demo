@@ -30,7 +30,7 @@
 
 
 
-
+setAuthToken(token: string): void { this.authToken = token; } refreshToken(): Observable<string> { return this.http.post<{ token: string }>('/api/refresh-token', { token: this.refreshToken }) .pipe( tap(response => this.authToken = response.token), switchMap(response => of(response.token)) ); }
 
 
 

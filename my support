@@ -1,0 +1,444 @@
+<div class="container-fluid my-support row col-md-12 mt-2">
+  <h2>My Support Information</h2>
+
+  <div class="card-container">
+    <div class="mt-2 col-12">
+      <div class="row">
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <ng-container *ngIf="mySupportDetails.length == 0">
+            <error-list *ngIf="errors.length > 0" [errorList]="errors" [canMessageDismiss]="true"
+              [isErrorTypeMessage]="true"></error-list>
+            <mat-card>
+              <mat-card-content>
+                <p class="text-center">
+                  No matching result found for specified search criterion
+                </p>
+              </mat-card-content>
+            </mat-card>
+          </ng-container>
+
+          <ng-container *ngIf="mySupportDetails.length > 0">
+            <mat-card>
+              <mat-card-content>
+                <h4 class="info-label">My Id: {{ item.tech.tech_name }}</h4>
+                <div class="row">
+                  <div class="col-md-3">
+                    <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                  </div>
+                  <div class="col-md-9">
+                    <p>
+                      <b>BIC Shipping Method: </b>
+                      {{ item.tech.bic_shipping_method }}
+                    </p>
+                    <p><b>Service Date: </b> {{ item.tech.svc_date }}</p>
+                    <p class="info-icon">
+                      <a [href]="'mailto:' + item.tech.email">
+                        <mat-icon>email</mat-icon>
+                      </a>
+                      <a class="link" [href]="'mailto:' + item.tech.email">
+                        <span>{{ item.tech.email }}</span>
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </ng-container>
+        </div>
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content class="">
+              <h4 class="info-label">
+                {{ item.assoc_manger.title }}:
+                {{ item.assoc_manger.first_name }}
+                {{ item.assoc_manger.last_name }}
+              </h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.assoc_manger.cvs_mobile">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.assoc_manger.cvs_mobile">
+                      <span>{{ item.assoc_manger.cvs_mobile }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'sms:' + item.assoc_manger.txt_carrier">
+                      <mat-icon>sms</mat-icon>
+                    </a>
+                    <a class="link" [href]="'sms:' + item.assoc_manger.txt_carrier">
+                      <span>{{ item.assoc_manger.txt_carrier }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.assoc_manger.email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.assoc_manger.email">
+                      <span>{{ item.assoc_manger.email }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">
+                {{ item.is_specialist.title }}:
+                {{ item.is_specialist.first_name }}
+                {{ item.is_specialist.last_name }}
+              </h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.is_specialist.cvs_mobile">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.is_specialist.cvs_mobile">
+                      <span>{{ item.is_specialist.cvs_mobile }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'sms:' + item.is_specialist.txt_carrier">
+                      <mat-icon>sms</mat-icon>
+                    </a>
+                    <a class="link" [href]="'sms:' + item.is_specialist.txt_carrier">
+                      <span>{{ item.is_specialist.txt_carrier }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.is_specialist.email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.is_specialist.email">
+                      <span>{{ item.is_specialist.email }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">
+                {{ item.manager.title }}: {{ item.manager.first_name }}
+                {{ item.manager.last_name }}
+              </h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.manager.cvs_mobile">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.manager.cvs_mobile">
+                      <span>{{ item.manager.cvs_mobile }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'sms:' + item.manager.txt_carrier">
+                      <mat-icon>sms</mat-icon>
+                    </a>
+                    <a class="link" [href]="'sms:' + item.manager.txt_carrier">
+                      <span>{{ item.manager.txt_carrier }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.manager.email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.manager.email">
+                      <span>{{ item.manager.email }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">
+                {{ item.director.title }}: {{ item.director.first_name }}
+                {{ item.director.last_name }}
+              </h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.director.cvs_mobile">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.director.cvs_mobile">
+                      <span>{{ item.director.cvs_mobile }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'sms:' + item.director.txt_carrier">
+                      <mat-icon>sms</mat-icon>
+                    </a>
+                    <a class="link" [href]="'sms:' + item.director.txt_carrier">
+                      <span>{{ item.director.txt_carrier }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.director.email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.director.email">
+                      <span>{{ item.director.email }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">Store Technical Support</h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/group.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p>Support for FTS Techs only</p>
+                  <p>Call your IS Specialist FIRST</p>
+
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.tech_line">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.tech_line">
+                      <span>
+                        <strong> TechLine </strong>: {{ item.tech_line }}</span>
+                    </a>
+                  </p>
+
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.after_hours">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.after_hours">
+                      <span><strong> After Hours </strong>:
+                        {{ item.after_hours }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">APP Support</h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/group.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.email_support">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <strong> Email Support </strong>
+                  </p>
+                  <p>Email Support APP is supported by Peter & Jay</p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">Team Support</h4>
+
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/group.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.part_info_email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.part_info_email">
+                      <span><strong>Part Info</strong> </span>
+                    </a>
+                  </p>
+                  <p>
+                    Siebel Parts/Part Photos. This will email everyone that
+                    manages Siebel
+                  </p>
+
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.knowledge_base_email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.knowledge_base_email">
+                      <span><strong>Knowledge Base Email </strong> </span>
+                    </a>
+                  </p>
+                  <p>
+                    Knowledge Base Techncial Documents This will email everyone
+                    that manages the FTS
+                  </p>
+                </div>
+              </div>
+            </mat-card-content></mat-card>
+        </div>
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content>
+              <h4 class="info-label">Human Resource</h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/cvshealth.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p>
+                    <strong> Values in Action</strong>
+                  </p>
+                  <p>Heart At Work Recognition</p>
+                  <a class="link" [href]="item.values_in_action">
+                    <span> {{ item.values_in_action }}</span>
+                  </a>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <div class="col-md-3 mb-3" *ngFor="let item of mySupportDetails">
+          <mat-card>
+            <mat-card-content class="">
+              <h4 class="info-label">
+                {{ item.usb_drive_image_support.title }}:
+                {{ item.usb_drive_image_support.first_name }}
+                {{ item.usb_drive_image_support.last_name }}
+              </h4>
+              <div class="row">
+                <div class="col-md-3">
+                  <img src="/assets/images/account.png" alt="Account Image" class="image" />
+                </div>
+                <div class="col-md-9">
+                  <p class="info-icon">
+                    <a [href]="'tel:' + item.usb_drive_image_support.cvs_mobile">
+                      <mat-icon>phone</mat-icon>
+                    </a>
+                    <a class="link" [href]="'tel:' + item.usb_drive_image_support.cvs_mobile">
+                      <span>{{ item.usb_drive_image_support.cvs_mobile }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'sms:' + item.usb_drive_image_support.txt_carrier">
+                      <mat-icon>sms</mat-icon>
+                    </a>
+                    <a class="link" [href]="'sms:' + item.usb_drive_image_support.txt_carrier">
+                      <span>{{
+                        item.usb_drive_image_support.txt_carrier
+                        }}</span>
+                    </a>
+                  </p>
+                  <p class="info-icon">
+                    <a [href]="'mailto:' + item.usb_drive_image_support.email">
+                      <mat-icon>email</mat-icon>
+                    </a>
+                    <a class="link" [href]="'mailto:' + item.usb_drive_image_support.email">
+                      <span>{{ item.usb_drive_image_support.email }}</span>
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+import { Overlay } from '@angular/cdk/overlay';
+import { Component, Input } from '@angular/core';
+import { FormBuilder } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Router } from '@angular/router';
+import { NGXLogger } from 'ngx-logger';
+import { IMySupportInfo } from 'src/app/resources/my-support-info';
+import { IUser } from 'src/app/resources/user';
+import { MySupportInfoService } from 'src/app/services/my-support-info.service';
+import { BasePageComponent } from 'src/app/shared/components/base-page/base-page.component';
+import { AppStateService } from 'src/app/shared/services/app-state-service';
+
+@Component({
+  selector: 'app-my-support-info',
+  templateUrl: './my-support-info.component.html',
+  styleUrls: ['./my-support-info.component.scss'],
+})
+export class MySupportInfoComponent extends BasePageComponent {
+  @Input() user?= <IUser>{};
+  techId: string | undefined;
+  mySupportDetails: IMySupportInfo[] = [];
+
+  constructor(
+    logger: NGXLogger,
+    router: Router,
+    activatedRoute: ActivatedRoute,
+    snackBar: MatSnackBar,
+    overlay: Overlay,
+    private formBuilder: FormBuilder,
+    public dialog: MatDialog,
+    private mySupportInfoService: MySupportInfoService,
+    private appStateService: AppStateService
+  ) {
+    super(logger, router, activatedRoute, snackBar, overlay);
+    this.user = this.appStateService.getCurrentUser();
+    this.techId = this.user?.tech_id;
+    this.loadMySupportInfoDetails();
+  }
+
+  ngOnInit(): void { }
+
+  private async loadMySupportInfoDetails() {
+    try {
+      this.showLoader();
+      this.clearErrors();
+      let linkData: any = await this.mySupportInfoService.getMySupportDetails(this.techId);
+
+      this.mySupportDetails = [linkData];
+    } catch (ex: unknown) {
+      this.updateErrorFromException(ex);
+    } finally {
+      this.hideLoader();
+    }
+  }
+
+}
